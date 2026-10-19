@@ -11,6 +11,7 @@ import {getDuration} from '../../../utils/time';
 import {TabPanel} from '../../controls';
 import {compose} from '../../utils';
 import NewBody from '../body';
+import AIPage from '../ai-page';
 
 import FilterSettings from './filter-settings';
 import {Header, MoreSiteSettings, MoreToggleSettings} from './header';
@@ -235,9 +236,11 @@ function Body(props: BodyProps & {fonts: string[]} & {installation: {date: numbe
                 onSwitchTab={(tab) => setState({activeTab: tab})}
                 tabs={__THUNDERBIRD__ ? {
                     'Filter': filterTab,
+                    'AI': <AIPage data={props.data} actions={props.actions} />,
                     'More': moreTab,
                 } : {
                     'Filter': filterTab,
+                    'AI': <AIPage data={props.data} actions={props.actions} />,
                     'Site list': (
                         <SiteListSettings data={props.data} actions={props.actions} isFocused={state.activeTab === 'Site list'} />
                     ),
@@ -245,6 +248,7 @@ function Body(props: BodyProps & {fonts: string[]} & {installation: {date: numbe
                 }}
                 tabLabels={{
                     'Filter': getLocalMessage('filter'),
+                    'AI': 'AI 定制',
                     'Site list': getLocalMessage('site_list'),
                     'More': getLocalMessage('more'),
                 }}

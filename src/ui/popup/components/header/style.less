@@ -12,13 +12,32 @@
     width: 100%;
 
     &__logo {
-        background-image: url('../assets/images/darkreader-type.svg');
-        background-size: 100%;
+        align-items: center;
+        color: @color-heading;
+        display: flex;
+        font-size: @size-text-large;
+        font-weight: 400;
         grid-area: logo;
         height: @popup-content-width / 10;
+        letter-spacing: 0.01em;
         outline: none;
-        text-indent: -999rem;
+        text-decoration: none;
+        white-space: nowrap;
         width: @popup-content-width;
+
+        &::after {
+            background: linear-gradient(135deg, #8b5cf6, #3884ff);
+            border-radius: 999px;
+            color: #fff;
+            content: 'AI';
+            font-size: @size-text-small;
+            font-weight: 700;
+            letter-spacing: 0.02em;
+            line-height: 1;
+            margin-left: 0.4em;
+            padding: 0.18em 0.42em;
+            transform: translateY(-0.05em);
+        }
 
         &:hover {
             filter: brightness(1.05);

@@ -1,4 +1,5 @@
 import {AdvancedIcon} from './advanced-icon';
+import {AIIcon} from './ai-icon';
 import {DeleteIcon} from './delete-icon';
 import {HelpIcon} from './help-icon';
 import {KeyIcon} from './key-icon';
@@ -11,6 +12,7 @@ import {WatchIcon} from './watch-icon';
 
 export {
     AdvancedIcon,
+    AIIcon,
     DeleteIcon,
     HelpIcon,
     KeyIcon,

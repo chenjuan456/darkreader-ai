@@ -61,6 +61,14 @@ const htmlEntries = [
         reloadType: reload.UI,
     },
     {
+        title: 'Dark Reader AI',
+        path: 'ui/sidepanel/index.html',
+        hasLoader: false,
+        hasStyleSheet: true,
+        hasCompatibilityCheck: false,
+        reloadType: reload.UI,
+    },
+    {
         title: 'Dark Reader settings',
         path: 'ui/options/index.html',
         hasLoader: false,

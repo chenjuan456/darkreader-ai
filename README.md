@@ -1,225 +1,114 @@
-<p align="center"><a href="https://darkreader.org" target="_blank" rel="noreferrer noopener"><img width="250" alt="Dark Reader's mascot" src="https://raw.githubusercontent.com/darkreader/darkreader.github.io/master/images/darkreader-mascot.svg"></a></p>
-<p align="center">Dark Reader <strong>analyzes</strong> web pages and aims to <strong>reduce eyestrain</strong> while browsing the web.</p>
-<br/>
-<p align="center"><a rel="noreferrer noopener" href="https://chromewebstore.google.com/detail/dark-reader/eimadpbcbfnmbkopoojfekhnkhdbieeh"><img alt="Chrome Web Store" src="https://img.shields.io/badge/Chrome-141e24.svg?&style=for-the-badge&logo=google-chrome&logoColor=white"></a>  <a rel="noreferrer noopener" href="https://addons.mozilla.org/firefox/addon/darkreader/"><img alt="Firefox Add-ons" src="https://img.shields.io/badge/Firefox-141e24.svg?&style=for-the-badge&logo=firefox-browser&logoColor=white"></a>  <a rel="noreferrer noopener" href="https://darkreader.org/safari/"><img alt="Apple App Store" src="https://img.shields.io/badge/Safari-141e24.svg?&style=for-the-badge&logo=safari&logoColor=white"></a>  <a rel="noreferrer noopener" href="https://microsoftedge.microsoft.com/addons/detail/dark-reader/ifoakfbpdcdoeenechcleahebpibofpc/"><img alt="Edge Addons" src="https://img.shields.io/badge/Edge-141e24.svg?&style=for-the-badge&logo=microsoft-edge&logoColor=white"></a>  <a el="noreferrer noopener" href="https://addons.thunderbird.net/thunderbird/addon/darkreader"><img alt="Thunderbird" src="https://img.shields.io/badge/Thunderbird-141e24.svg?&style=for-the-badge&logo=thunderbird&logoColor=white"></a>
+# Dark Reader AI
 
-<h2 align="center">Dark Reader</h2>
-<br/>
-<p align="center">Dark Reader is an <strong>open-source</strong> MIT-licensed <strong>browser extension</strong> designed to analyze web pages. Dark Reader will generate a dark mode that aims to <strong>reduce the eyestrain</strong> of the user. Dark Reader is <strong>feature-rich</strong> and is customizable in many ways throughout the UI.</p>
-<br/>
-<br/>
+> ⚠️ **这是一个纯 vibe coding 仓库** —— 全部代码由 AI 编写，人类只负责提需求、看效果和拍板。
+> 本 README 也是 AI 写的。
 
-## Questions
+基于 [Dark Reader](https://github.com/darkreader/darkreader)（MIT License）二次开发的浏览器扩展：
+在保留原版 80 万行规则引擎的基础上，接入了 AI 能力 —— **让 AI 读取网页，为每个网站定制专属的深色方案**。
 
-Most questions can be answered by reading the [help page](https://darkreader.org/help/).
-If the help page doesn't answer your question, open up a new [discussion](https://github.com/darkreader/darkreader/discussions).
+---
 
-## How to contribute
+## 它能做什么
 
-Read more about contributing to Dark Reader in [CONTRIBUTING.md](https://github.com/darkreader/darkreader/blob/main/CONTRIBUTING.md).
-
-## Building for use
-
-Dark Reader build script requires a JavaScript runtime, either Node.js or Deno. We recommend using Node.js, Deno support is experimental.
-
-### Building with Node.js
-
-You can install the extension from a file.
-Install [Node.js](https://nodejs.org/) (we recommend LTS or higher, but any version at or above 15 will work). Download the source code (or check out from git).
-Open the terminal in the root folder and run:
-
-- `npm install`
-- `npm run build` or `npm run build [-- flags]`
-
-This will create a `build/release/darkreader-chrome.zip` file for use in a Chromium-based browser and a `build/release/darkreader-firefox.xpi` file for use in Firefox.
-
-You can customize the build process by passing flags to build script. To see all flags, run `npm run build -- --help`.
-
-### Building with Deno
-
-You can build Dark Reader with an alternative runtime called [Deno](https://deno.land/). For this run `deno:bootstrap` script (e.g., via `npm run deno:bootstrap` or manually copy the command from `package.json`). Then run the same commands described above.
-
-Please note that if you encounter the error `Too many open files (os error 24)`, then you should use the newer version of Deno (preferably built from source or canary).
-
-### Bundling with official Firefox store signatures (experimental)
-
-Before publication, extension stores provide digital signatures for extensions. These digital signatures certify the integrity of the archive (that the extension bundle did not get corrupted or bit-rotted) and that the extension store performed very basic extension validation.
-
-Dark Reader repository contains these digital signatures and you can add them to the extension bundle. The following will build Dark Reader for Firefox version 4.9.63:
-```
-npm run build -- --firefox --version=4.9.63
-```
-
-Please note that only Firefox Add-ons store signatures are present in the repository right now. Also, due to NodeJS and TypeScript version compatibility, one might have to first check out the old revision (commit), then build the extension files, then check out the recent commit and create the bundle (by running only `signature` and `zip` steps).
-
-## Using Dark Reader on a website
-
-You can use Dark Reader to enable dark mode on your website!
-
-- Install the package from NPM (`npm install darkreader`)
-- or build from the source code (`npm run api`)
-- or include the script via a CDN such as [unpkg](https://unpkg.com/darkreader/) or [jsDelivr](https://www.jsdelivr.com/package/npm/darkreader)
-
-Then you can use the following code to control Dark Reader's API:
-```javascript
-DarkReader.enable({
-    brightness: 100,
-    contrast: 90,
-    sepia: 10
-});
-
-DarkReader.disable();
-
-// Enable when the system color scheme is dark.
-DarkReader.auto({
-    brightness: 100,
-    contrast: 90,
-    sepia: 10
-});
-
-// Stop watching for the system color scheme.
-DarkReader.auto(false);
-
-// Get the generated CSS of Dark Reader returned as a string.
-const CSS = await DarkReader.exportGeneratedCSS();
-
-// Check if Dark Reader is enabled.
-const isEnabled = DarkReader.isEnabled();
-```
-
-... or if you are using ES modules:
-
-```javascript
-import {
-    enable as enableDarkMode,
-    disable as disableDarkMode,
-    auto as followSystemColorScheme,
-    exportGeneratedCSS as collectCSS,
-    isEnabled as isDarkReaderEnabled
-} from 'darkreader';
-
-enableDarkMode({
-    brightness: 100,
-    contrast: 90,
-    sepia: 10,
-});
-
-disableDarkMode();
-
-followSystemColorScheme();
-
-const CSS = await collectCSS();
-
-const isEnabled = isDarkReaderEnabled();
-```
-
-Be aware that Dark Reader will add the `chrome` object onto the `window` object. These are to stub certain functions that the code will use. They originate from the webextension-api.
-
-## Site fixes
-
-Automatically syncing the site fixes for every Dark Reader user was disabled because the GitHub team does not allow using GitHub as a content delivery network (CDN). The storage of these files would be expensive, and making requests to other resources would look suspicious. Each new release of Dark Reader will include the new changes.
-
-However, this can be manually enabled with the following steps:
-
-1. Click on the Dark Reader extension icon.
-2. Click on the `Dev tools` button (in the bottom-right corner).
-3. Go to `Advanced` and click on the `Preview new design` button.
-4. Close the developer tools window and click on the Dark Reader extension icon again.
-5. Go to `Settings` -> `Advanced` and enable the `Synchronize sites fixes` setting.
-
-To force a synchronization of the sites fixes (when the corresponding setting is enabled), perform the following steps:
-
-1. Click on the Dark Reader extension icon.
-2. Go to `Settings` -> `Advanced` -> `Dev tools`.
-3. For each "Editor" section, click on `Reset changes`, confirm with `OK`, and then click on `Apply`. Afterwards, close the developer tools window and reload the desired page(s).
-
-## Enable Dark Reader on restricted pages on Mozilla Firefox
-
-By default, Dark Reader does not work on some websites due to **security restrictions** enforced by Mozilla.
-
-The following instructions will guide you on how to disable those restrictions.
-
-**Proceed with caution. This exposes you to a security risk if you do not know what you are doing.**
-
-**Be sure that you do not have any suspicious or malicious-looking extension installed before proceeding.**
-
-**These settings will apply to all extensions, and not just Dark Reader.**
-
-Step 1: change Dark Reader's settings.
-
-1. Click on the Dark Reader extension icon.
-2. Click on the `Dev tools` button (in the bottom-right corner).
-3. Go to `Advanced` and click on the `Preview new design` button.
-4. Close the developer tools window and click on the Dark Reader extension icon again.
-5. Go to `Settings` -> `Advanced` and enable the `Enable on restricted pages` setting.
-
-Step 2: change Firefox's settings.
-
-- Type `about:config` in the address bar and press Enter.
-  - A warning page may appear. Click `Accept the Risk and Continue` to proceed.
-- Search for and set `extensions.webextensions.restrictedDomains` to an empty value (if the preference does not exist, create it with `String` as the type).
-- Set `privacy.resistFingerprinting.block_mozAddonManager` to `true` (if the preference does not exist, create it with `Boolean` as the type).
-
-After changing the necessary settings for both Dark Reader and Firefox, reload the desired page(s).
-
-**If you had previously changed any of the following preferences, please reset them to their default values as they are only related to security and are not necessary for Dark Reader to work on restricted websites.**
-To reset them, click on the reset (or delete icon, if present) icon at the most-right corner of the preference line in `about:config`.
-- `extensions.webextensions.addons-restricted-domains@mozilla.com.disabled`
-- `extensions.quarantinedDomains.enabled`
-- `extensions.quarantinedDomains.list`
-
-### Clarification about quarantined domains ("Run on sites with restrictions" option)
-<details><summary>Quarantined domains and Dark Reader — an explanation</summary>
-
-The option "Run on sites with restrictions", present for some extensions, is only related to quarantined domains and is not needed for Dark Reader to work on restricted websites. In the context of Firefox's source code, "restricted domains" and "quarantined domains" are two separate things.
-
-**The "restricted domains" list** (controlled by the preference `extensions.webextensions.restrictedDomains`) is the same for all users. It will restrict *all* user-installed extensions (without exceptions) from running on the specified websites. The list is controlled by Mozilla, and, as of December 2024, the list only contains Mozilla-owned domains. Sites that are not on that list will not be affected by those restrictions (meaning that the extensions will be able to run normally).
-
-**The "quarantined domains" list** (controlled by the preferences `extensions.quarantinedDomains.enabled` and `extensions.quarantinedDomains.list`) contains domains that will run extensions normally, but if Firefox detects suspicious activity from a particular extension it will block that extension on those specific websites. The list is controlled by Mozilla, and, as of December 2024, the list only contains domains related to Internet banking in Brazil. For more information about quarantined domains, see "[Why are some add-ons not allowed on sites restricted by Mozilla?](https://support.mozilla.org/en-US/kb/quarantined-domains)".
-
-For Dark Reader, the option "Run on sites with restrictions" is not shown because Dark Reader is a [Recommended](https://support.mozilla.org/en-US/kb/recommended-extensions-program) extension by Mozilla. (The "Recommended" status is only relevant for "quarantined domains", and does not affect "restricted domains".)
-
-The fact that it is a Recommended extension means that it meets the "highest standards of security, functionality, and user experience". The quarantined domains are only related to extension security. Because Dark Reader is considered secure by Mozilla, that option is not shown, meaning **it will always run even on quarantined domains** (but will still obey the "restricted domains" list if it is not empty).
-
-Regarding quarantined domains specifically, there is this [comment from Firefox's source code](https://searchfox.org/mozilla-central/rev/1838f847aa3bf909c3d34a94a8f0cd7e37fca086/toolkit/components/extensions/Extension.sys.mjs#3470-3471):
+原版 Dark Reader 对所有网站用同一套算法。这个 fork 让你多一个选项：
 
 ```
-// Privileged extensions and any extensions with a recommendation state are
-// exempt from the quarantined domains.
+打开网站 → 点扩展图标（侧边栏）→ 生成方案
+   ↓
+AI 分析该站的品牌色 / 结构 / CSS 变量
+   ↓
+输出一套「配色 + 修复规则」，直接喂进 Dark Reader 原生引擎
+   ↓
+方案按站点缓存，下次访问自动生效
 ```
 
-A simple way to recapitulate all this information is: "restricted domains" exist to protect Mozilla-owned sites (no user-installed extension will run on them, without exceptions), while "quarantined domains" are meant to protect users from malicious extensions (and it doesn't apply to Dark Reader because it is a Recommended extension).
+### 核心特性
 
-</details>
+- **AI 定制配色** —— 每个网站一套独立的背景/文字色，参考该站品牌色生成，而不是千篇一律的默认深灰
+- **指出问题，增量修复** —— 页面某处还是白的？点「选取问题元素」，去页面上点它，AI 只修这一处，不动其他部分
+- **多服务商配置** —— 同时保存多套 API 配置（OpenAI / DeepSeek / 讯飞 / Ollama…任何 OpenAI 兼容端点），一键切换
+- **常驻侧边栏** —— 用 Chrome Side Panel 替代了 popup，在页面上点元素时面板不会消失
+- **图标可见性检测** —— 纯本地算法，自动发现「深色图标落在暗背景上」导致的图标消失并反色修复，不消耗 token
+- **方案导入导出** —— JSON 备份，换机迁移
+- **一键复制错误报告** —— 出错时点一下，带上下文的诊断信息进剪贴板
 
-<h2 align="center">Contributors</h2>
-<br/>
-<h3 align="center"><strong>Thank you to all our contributors! Dark Reader exists thanks to you.</strong></h3>
-<br/>
-<br/>
-<p align="center"><a rel="noreferrer noopener" href="https://github.com/darkreader/darkreader/graphs/contributors/"><img src="https://opencollective.com/darkreader/contributors.svg?width=890&button=false"/></a></p>
+## 隐私设计
 
-<h2 align="center">Backers</h2>
-<br/>
-<h3 align="center"><strong>Thank you to all our generous backers! </strong>Support Dark Reader by <a rel="noreferrer noopener" href="https://opencollective.com/darkreader" target="_blank">becoming a backer</a>.</h3>
-<br/>
-<br/>
-<p align="center"><a rel="noreferrer noopener" href="https://opencollective.com/darkreader#backers" target="_blank"><img src="https://opencollective.com/darkreader/backers.svg?width=890&limit=1000"></a></p>
+- API Key 只存在 `chrome.storage.local`，不进 sync、不写代码
+- 发给 AI 的只有页面**结构和颜色**（选择器、背景色、CSS 变量），**不含网页正文**
+- 密码框、支付字段、`contenteditable` 在采集阶段就被剔除
+- 默认关闭，纯手动触发，不自动分析任何网站
 
-<h2 align="center">Sponsors</h2>
-<p>Does your company use Dark Reader? Please ask your manager or the marketing team if your company would be interested in supporting our project. Your support will allow the maintainers to dedicate more time to maintenance and creating new features for everyone. Also, your company's logo will show on <a rel="noreferrer noopener" href="https://github.com/darkreader/darkreader#sponsors" target="_blank">GitHub</a>. Who doesn't want a little extra exposure? <a rel="noreferrer noopener" href="https://opencollective.com/darkreader" target="_blank">Here's the info</a>.</p>
+## 安装
 
-<h3 align="center"><strong>Thank you to all our wonderful sponsors!</strong></h3>
-<br/>
-<br/>
-<a href="https://opencollective.com/darkreader/sponsor/0/website" target="_blank" rel="noreferrer noopener"><img src="https://opencollective.com/darkreader/sponsor/0/avatar.svg"></a>
-<a href="https://opencollective.com/darkreader/sponsor/1/website" target="_blank" rel="noreferrer noopener"><img src="https://opencollective.com/darkreader/sponsor/1/avatar.svg"></a>
-<a href="https://opencollective.com/darkreader/sponsor/2/website" target="_blank" rel="noreferrer noopener"><img src="https://opencollective.com/darkreader/sponsor/2/avatar.svg"></a>
-<a href="https://opencollective.com/darkreader/sponsor/3/website" target="_blank" rel="noreferrer noopener"><img src="https://opencollective.com/darkreader/sponsor/3/avatar.svg"></a>
-<a href="https://opencollective.com/darkreader/sponsor/4/website" target="_blank" rel="noreferrer noopener"><img src="https://opencollective.com/darkreader/sponsor/4/avatar.svg"></a>
-<a href="https://opencollective.com/darkreader/sponsor/5/website" target="_blank" rel="noreferrer noopener"><img src="https://opencollective.com/darkreader/sponsor/5/avatar.svg"></a>
-<a href="https://opencollective.com/darkreader/sponsor/6/website" target="_blank" rel="noreferrer noopener"><img src="https://opencollective.com/darkreader/sponsor/6/avatar.svg"></a>
-<a href="https://opencollective.com/darkreader/sponsor/7/website" target="_blank" rel="noreferrer noopener"><img src="https://opencollective.com/darkreader/sponsor/7/avatar.svg"></a>
-<a href="https://opencollective.com/darkreader/sponsor/8/website" target="_blank" rel="noreferrer noopener"><img src="https://opencollective.com/darkreader/sponsor/8/avatar.svg"></a>
-<a href="https://opencollective.com/darkreader/sponsor/9/website" target="_blank" rel="noreferrer noopener"><img src="https://opencollective.com/darkreader/sponsor/9/avatar.svg"></a>
-<a href="https://opencollective.com/darkreader/sponsor/10/website" target="_blank" rel="noreferrer noopener"><img src="https://opencollective.com/darkreader/sponsor/10/avatar.svg"></a>
+没有上架商店，从源码构建：
+
+```bash
+git clone https://github.com/chenjuan456/darkreader-ai.git
+cd darkreader-ai
+npm install --ignore-scripts
+node --max-old-space-size=3072 tasks/build.js --release --chrome-mv3
+```
+
+然后 `chrome://extensions` → 开发者模式 → 加载已解压的扩展程序 → 选择 `build/release/chrome-mv3` 目录。
+
+> 需要 Chrome 116+（Side Panel API）。
+
+## 使用
+
+1. 扩展选项 → **AI** 标签 → 填 Base URL / API Key / 模型 → 勾选「启用 AI 定制」→ 保存
+2. 打开任意网站 → 点扩展图标唤出侧边栏 → **生成方案**
+3. 不满意？**选取问题元素** → 在页面上点出错的区域 → **修复这 N 处**
+
+## 技术上怎么实现的
+
+关键决策一句话：**AI 不重做引擎，AI 当「高级规则作者」。**
+
+Dark Reader 的动态引擎已经处理了颜色映射、CSS 变量、Shadow DOM、图片分析这些脏活，还有一份 800KB / 3 万行的站点修复规则库。让 LLM 从零生成整页 CSS 是其他同类产品的做法，也是它们效果平庸的原因。
+
+这个项目的做法是把 AI 的输出**对齐到引擎的原生数据结构**：
+
+```
+LLM 输出 JSON
+  ├─ theme  → Partial<Theme>      （配色，走 Dark Reader 原生主题管道）
+  └─ fixes  → DynamicThemeFix     （修复规则，与内置规则叠加合并）
+```
+
+AI 生成的规则里允许用 `${white}` / `${black}` 占位符 —— 引擎会按用户的亮度/对比度设置自动换算成暗色，**AI 不需要会算颜色**。所有模型输出经过校验（选择器合法性、颜色格式、CSS 体积与危险内容过滤），脏数据不进引擎。
+
+目录结构：
+
+```
+src/ai/            AI 模块（本次开发的全部增量）
+  client.ts        OpenAI 兼容客户端（手写 fetch，不引 SDK）
+  collect*.ts      页面采集器（结构/颜色/CSS 变量，含脱敏）
+  scheme.ts        Prompt、JSON Schema、输出规范化
+  generate.ts      生成编排（含基于用户反馈的增量修复）
+  store.ts         方案持久化（域名/路径两级作用域）
+  icons.ts         图标可见性启发式检测
+  picker.ts        页面元素拾取器
+  pending.ts       拾取状态持久化（storage.session）
+src/ui/sidepanel/  侧边栏入口（替代 popup）
+src/ui/popup/      AI 面板（popup 与侧边栏共用）
+src/ui/options/ai/ 设置页 AI 标签
+```
+
+其余部分（引擎、规则库、构建系统）保持上游 4.9.133 原样。
+
+## 已知限制
+
+- 只构建了 Chrome MV3 目标（Firefox/Safari 未适配）
+- 不跟进上游 —— fork 冻结在 4.9.133，往后各自发展
+- AI 生成的 CSS 质量取决于所用模型，推理模型需把「最大输出 token」调到 8000+
+
+## License
+
+MIT —— 继承自 [Dark Reader](https://github.com/darkreader/darkreader)，感谢 Alexander Shutau 和所有上游贡献者。
+
+## 关于 vibe coding
+
+这个仓库是一次实验：**从 fork 到可用产品，全程只动嘴不动手。**
+
+过程中 AI 读上游源码定位注入点、写功能、写测试（构建产物级的端到端验证，不是摆设的单元测试）、修自己引入的 bug、被用户打回重做 UI —— 人做的事是提需求、验收、以及决定「这个方向对不对」。
+
+如果你想看 AI 在一个 80 万行的真实项目里怎么干活，这个仓库的 diff 就是完整记录。

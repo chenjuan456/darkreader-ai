@@ -508,6 +508,38 @@ export default class TabManager {
         return tab && Boolean(TabManager.tabs[tab.id!]) || false;
     }
 
+    /**
+     * 只更新指定标签页的主题。
+     * 用于 AI 方案生成后立即生效，避免全量重发。
+     */
+    static async sendMessageToTab(tabId: number): Promise<void> {
+        TabManager.timestamp++;
+        const frames = TabManager.tabs[tabId];
+        if (!frames) {
+            return;
+        }
+        const tab = await new Promise<chrome.tabs.Tab | null>((resolve) => {
+            chrome.tabs.get(tabId, (t) => resolve(chrome.runtime.lastError ? null : t));
+        });
+        if (!tab) {
+            return;
+        }
+        const tabURL = await TabManager.getTabURL(tab);
+
+        for (const [id, {url, documentId, scriptId, isTop, state}] of Object.entries(frames)) {
+            if (state !== DocumentState.ACTIVE && state !== DocumentState.PASSIVE) {
+                continue;
+            }
+            const frameId = Number(id);
+            const message = TabManager.getTabMessage(tabURL, url!, isTop || false);
+            message.scriptId = scriptId;
+            TabManager.sendDocumentMessage(tabId, documentId!, message, frameId);
+            if (TabManager.tabs[tabId][frameId]) {
+                TabManager.tabs[tabId][frameId].timestamp = TabManager.timestamp;
+            }
+        }
+    }
+
     static getTabDocumentId(tab: chrome.tabs.Tab | null): string | null {
         return tab && TabManager.tabs[tab.id!] && TabManager.tabs[tab.id!][0] && TabManager.tabs[tab.id!][0].documentId;
     }

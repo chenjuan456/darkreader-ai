@@ -23,6 +23,21 @@ export interface ExtensionAdapter {
     resetActivation: () => Promise<void>;
     hideHighlights: (ids: string[]) => Promise<void>;
     waitUntilReady: () => Promise<void>;
+    getAISettings: () => Promise<any>;
+    saveAISettings: (settings: any) => Promise<any>;
+    getAIStore: () => Promise<any>;
+    saveAIStore: (store: any) => Promise<any>;
+    testAIConnection: (settings: any) => Promise<any>;
+    generateAIScheme: (tabId: number) => Promise<any>;
+    refineAIScheme: (data: any) => Promise<any>;
+    pickAIElement: (tabId: number) => Promise<any>;
+    getAIPending: (tabId: number) => Promise<any>;
+    clearAIPending: () => Promise<any>;
+    getAISchemeStatus: (tabId: number) => Promise<any>;
+    clearAIScheme: (tabId: number) => Promise<any>;
+    exportAISchemes: () => Promise<any>;
+    importAISchemes: (data: any) => Promise<any>;
+    setAIScope: (data: any) => Promise<any>;
 }
 
 export default class Messenger {
@@ -49,6 +64,7 @@ export default class Messenger {
             chrome.runtime.getURL('/ui/popup/index.html'),
             chrome.runtime.getURL('/ui/devtools/index.html'),
             chrome.runtime.getURL('/ui/options/index.html'),
+            chrome.runtime.getURL('/ui/sidepanel/index.html'),
             chrome.runtime.getURL('/ui/stylesheet-editor/index.html'),
         ];
         if (
@@ -65,6 +81,21 @@ export default class Messenger {
             return ([
                 MessageTypeUItoBG.GET_DATA,
                 MessageTypeUItoBG.GET_DEVTOOLS_DATA,
+                MessageTypeUItoBG.AI_GET_SETTINGS,
+                MessageTypeUItoBG.AI_SAVE_SETTINGS,
+                MessageTypeUItoBG.AI_GET_STORE,
+                MessageTypeUItoBG.AI_SAVE_STORE,
+                MessageTypeUItoBG.AI_TEST_CONNECTION,
+                MessageTypeUItoBG.AI_GENERATE_SCHEME,
+                MessageTypeUItoBG.AI_REFINE_SCHEME,
+                MessageTypeUItoBG.AI_PICK_ELEMENT,
+                MessageTypeUItoBG.AI_GET_PENDING,
+                MessageTypeUItoBG.AI_CLEAR_PENDING,
+                MessageTypeUItoBG.AI_GET_SCHEME_STATUS,
+                MessageTypeUItoBG.AI_CLEAR_SCHEME,
+                MessageTypeUItoBG.AI_EXPORT_SCHEMES,
+                MessageTypeUItoBG.AI_IMPORT_SCHEMES,
+                MessageTypeUItoBG.AI_SET_SCOPE,
             ].includes(message.type as MessageTypeUItoBG));
         }
     }
@@ -153,6 +184,51 @@ export default class Messenger {
                 break;
             case MessageTypeUItoBG.HIDE_HIGHLIGHTS:
                 Messenger.adapter.hideHighlights(data);
+                break;
+            case MessageTypeUItoBG.AI_GET_SETTINGS:
+                Messenger.adapter.getAISettings().then((settings) => sendResponse({data: settings}));
+                break;
+            case MessageTypeUItoBG.AI_SAVE_SETTINGS:
+                Messenger.adapter.saveAISettings(data).then((settings) => sendResponse({data: settings}));
+                break;
+            case MessageTypeUItoBG.AI_GET_STORE:
+                Messenger.adapter.getAIStore().then((store) => sendResponse({data: store}));
+                break;
+            case MessageTypeUItoBG.AI_SAVE_STORE:
+                Messenger.adapter.saveAIStore(data).then((store) => sendResponse({data: store}));
+                break;
+            case MessageTypeUItoBG.AI_TEST_CONNECTION:
+                Messenger.adapter.testAIConnection(data).then((result) => sendResponse({data: result}));
+                break;
+            case MessageTypeUItoBG.AI_GENERATE_SCHEME:
+                Messenger.adapter.generateAIScheme(data.tabId).then((result) => sendResponse({data: result}));
+                break;
+            case MessageTypeUItoBG.AI_GET_SCHEME_STATUS:
+                Messenger.adapter.getAISchemeStatus(data.tabId).then((result) => sendResponse({data: result}));
+                break;
+            case MessageTypeUItoBG.AI_CLEAR_SCHEME:
+                Messenger.adapter.clearAIScheme(data.tabId).then((result) => sendResponse({data: result}));
+                break;
+            case MessageTypeUItoBG.AI_REFINE_SCHEME:
+                Messenger.adapter.refineAIScheme(data).then((result) => sendResponse({data: result}));
+                break;
+            case MessageTypeUItoBG.AI_PICK_ELEMENT:
+                Messenger.adapter.pickAIElement(data.tabId).then((result) => sendResponse({data: result}));
+                break;
+            case MessageTypeUItoBG.AI_GET_PENDING:
+                Messenger.adapter.getAIPending(data.tabId).then((result) => sendResponse({data: result}));
+                break;
+            case MessageTypeUItoBG.AI_CLEAR_PENDING:
+                Messenger.adapter.clearAIPending().then((result) => sendResponse({data: result}));
+                break;
+            case MessageTypeUItoBG.AI_EXPORT_SCHEMES:
+                Messenger.adapter.exportAISchemes().then((result) => sendResponse({data: result}));
+                break;
+            case MessageTypeUItoBG.AI_IMPORT_SCHEMES:
+                Messenger.adapter.importAISchemes(data).then((result) => sendResponse({data: result}));
+                break;
+            case MessageTypeUItoBG.AI_SET_SCOPE:
+                Messenger.adapter.setAIScope(data).then((result) => sendResponse({data: result}));
                 break;
             default:
                 break;

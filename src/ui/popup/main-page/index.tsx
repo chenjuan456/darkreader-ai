@@ -4,6 +4,7 @@ import type {ViewProps} from '../../../definitions';
 import {NavButton} from '../../controls';
 
 import AppSwitch from './app-switch';
+import AIGroup from './ai-group';
 import HelpGroup from './help';
 import SiteToggleGroup from './site-toggle';
 import ThemeGroup from './theme-group';
@@ -39,6 +40,9 @@ export default function MainPage(props: MainPageProps) {
             </section>
             <section class="m-section">
                 <ThemeGroup {...props} />
+            </section>
+            <section class="m-section">
+                <AIGroup {...props} />
             </section>
             <section class="m-section">
                 <SettingsNavButton onClick={props.onSettingsNavClick} />

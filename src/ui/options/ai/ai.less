@@ -1,0 +1,175 @@
+@import "../../theme";
+
+.ai-tab {
+    &__notice {
+        color: @color-input-fore;
+        font-size: @size-text-small;
+        line-height: @size-text-small-height;
+        margin-bottom: @indent-small;
+        opacity: 0.85;
+    }
+
+    &__field {
+        margin-top: @indent-small;
+    }
+
+    &__label {
+        color: @color-fore;
+        display: block;
+        font-size: @size-text-small;
+        line-height: @size-text-small-height;
+        margin-bottom: 0.125rem;
+    }
+
+    &__description {
+        color: @color-input-fore-placeholder;
+        font-size: @size-text-small;
+        line-height: @size-text-small-height;
+        margin-top: 0.125rem;
+    }
+
+    &__actions {
+        display: flex;
+        gap: @indent-small;
+        margin-top: @indent-small;
+    }
+
+    &__button {
+        flex: 1;
+    }
+
+    &__status {
+        font-size: @size-text-small;
+        line-height: @size-text-small-height;
+        margin-top: @indent-small;
+        word-break: break-word;
+
+        &--ok {
+            color: @color-fore;
+        }
+
+        &--error {
+            color: @color-error;
+        }
+    }
+
+    &__endpoint {
+        font-size: @size-text-small;
+        margin-top: 0.125rem;
+        opacity: 0.7;
+        word-break: break-all;
+    }
+
+    &__copy {
+        margin-top: @indent-small;
+    }
+
+    &__config-list {
+        display: flex;
+        flex-direction: column;
+        gap: 0.2rem;
+    }
+
+    &__config-item {
+        align-items: center;
+        background-color: @color-input-back;
+        border: @size-border solid @color-border;
+        cursor: pointer;
+        display: flex;
+        justify-content: space-between;
+        padding: 0.3rem 0.4rem;
+
+        &:hover {
+            background-color: @color-input-hover;
+        }
+
+        &--active {
+            border-color: @color-heading;
+            background-color: @color-control-hover;
+
+            .ai-tab__config-name {
+                color: @color-heading;
+                font-weight: 700;
+            }
+        }
+    }
+
+    &__config-name {
+        color: @color-input-fore;
+        font-size: @size-text-small;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    &__config-meta {
+        color: @color-input-fore-placeholder;
+        flex: none;
+        font-size: @size-text-small;
+        margin-left: @indent-small;
+    }
+
+    &__config-actions {
+        display: flex;
+        gap: 0.25rem;
+        margin-top: 0.3rem;
+    }
+
+    &__mini-wide {
+        background-color: @color-control-back;
+        border: @size-border solid @color-border;
+        box-sizing: border-box;
+        color: @color-control-fore;
+        cursor: pointer;
+        flex: 1;
+        font: inherit;
+        font-size: @size-text-small;
+        height: @size-control-inner;
+        padding: 0 0.25rem;
+
+        &:hover:not(:disabled) {
+            background-color: @color-control-hover;
+        }
+
+        &:disabled {
+            color: @color-input-fore-placeholder;
+            cursor: not-allowed;
+            opacity: 0.5;
+        }
+    }
+
+    &__advanced-toggle {
+        color: @color-fore;
+        cursor: pointer;
+        font-size: @size-text-small;
+        margin-top: @indent-small;
+        user-select: none;
+
+        &:hover {
+            color: @color-heading;
+        }
+    }
+
+    &__advanced {
+        border-left: @size-border solid @color-border;
+        margin-top: 0.25rem;
+        padding-left: @indent-small;
+    }
+
+    &__section {
+        border-top: @size-border solid @color-border;
+        margin-top: @indent-small;
+        padding-top: @indent-small;
+    }
+
+    &__section-title {
+        color: @color-heading;
+        font-size: @size-text-small;
+        font-weight: 700;
+        margin-bottom: 0.25rem;
+    }
+
+    &__file {
+        display: none;
+    }
+}

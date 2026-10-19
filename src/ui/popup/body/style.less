@@ -25,16 +25,33 @@
     }
 
     .m-logo {
-        background-image: url('../assets/images/darkreader-type.svg');
+        align-items: center;
         background-position: center;
         background-size: 100%;
-        display: inline-block;
+        color: @color-heading;
+        display: flex;
+        font-size: @size-text-large;
         grid-area: logo;
         height: @popup-content-width / 10;
+        justify-content: center;
         margin: 0 auto;
         outline: none;
-        text-indent: -999rem;
+        text-decoration: none;
+        white-space: nowrap;
         width: @popup-content-width;
+
+        &::after {
+            background: linear-gradient(135deg, #8b5cf6, #3884ff);
+            border-radius: 999px;
+            color: #fff;
+            content: 'AI';
+            font-size: @size-text-small;
+            font-weight: 700;
+            letter-spacing: 0.02em;
+            line-height: 1;
+            margin-left: 0.4em;
+            padding: 0.18em 0.42em;
+        }
     }
 
     .m-help-button {

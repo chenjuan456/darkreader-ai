@@ -1,5 +1,78 @@
 @import "../../theme.less";
 
+.ai-group {
+    &__title {
+        color: @color-heading;
+        font-size: @size-text-small;
+        font-weight: 700;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+    }
+
+    &__hint {
+        color: @color-input-fore;
+        font-size: @size-text-small;
+        line-height: @size-text-small-height;
+        margin-top: @indent-small / 2;
+    }
+
+    &__reason {
+        color: @color-input-fore-placeholder;
+        font-size: @size-text-small;
+        line-height: @size-text-small-height;
+        margin-top: @indent-small / 2;
+        max-height: 3.6em;
+        overflow: hidden;
+    }
+
+    &__error {
+        color: @color-error;
+        font-size: @size-text-small;
+        line-height: @size-text-small-height;
+        margin-top: @indent-small / 2;
+        word-break: break-word;
+    }
+
+    &__button {
+        background-color: @color-control-back;
+        border: @size-border solid @color-border;
+        box-sizing: border-box;
+        color: @color-control-fore;
+        cursor: pointer;
+        font: inherit;
+        font-size: @size-text-small;
+        height: @size-control-inner;
+        margin-top: @indent-small;
+        padding: 0 @indent-small;
+        width: 100%;
+
+        &:hover {
+            background-color: @color-control-hover;
+        }
+
+        &:active {
+            background-color: @color-control-active;
+        }
+
+        &--secondary {
+            flex: 1;
+            margin-top: 0;
+            width: auto;
+        }
+    }
+
+    &__actions {
+        display: flex;
+        gap: @indent-small;
+        margin-top: @indent-small;
+    }
+
+    &__copy {
+        flex: 1;
+        font-size: @size-text-small;
+    }
+}
+
 .app-switch {
     &__control {
         width: calc(100% - @size-border * 2);

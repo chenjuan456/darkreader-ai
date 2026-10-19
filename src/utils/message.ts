@@ -14,7 +14,22 @@ export enum MessageTypeUItoBG {
     START_ACTIVATION = 'ui-bg-start-activation',
     RESET_ACTIVATION = 'ui-bg-reset-activation',
     COLOR_SCHEME_CHANGE = 'ui-bg-color-scheme-change',
-    HIDE_HIGHLIGHTS = 'ui-bg-hide-highlights'
+    HIDE_HIGHLIGHTS = 'ui-bg-hide-highlights',
+    AI_GET_SETTINGS = 'ui-bg-ai-get-settings',
+    AI_SAVE_SETTINGS = 'ui-bg-ai-save-settings',
+    AI_GET_STORE = 'ui-bg-ai-get-store',
+    AI_SAVE_STORE = 'ui-bg-ai-save-store',
+    AI_TEST_CONNECTION = 'ui-bg-ai-test-connection',
+    AI_GENERATE_SCHEME = 'ui-bg-ai-generate-scheme',
+    AI_REFINE_SCHEME = 'ui-bg-ai-refine-scheme',
+    AI_PICK_ELEMENT = 'ui-bg-ai-pick-element',
+    AI_GET_PENDING = 'ui-bg-ai-get-pending',
+    AI_CLEAR_PENDING = 'ui-bg-ai-clear-pending',
+    AI_GET_SCHEME_STATUS = 'ui-bg-ai-get-scheme-status',
+    AI_CLEAR_SCHEME = 'ui-bg-ai-clear-scheme',
+    AI_EXPORT_SCHEMES = 'ui-bg-ai-export-schemes',
+    AI_IMPORT_SCHEMES = 'ui-bg-ai-import-schemes',
+    AI_SET_SCOPE = 'ui-bg-ai-set-scope'
 }
 
 export enum MessageTypeBGtoUI {
@@ -48,7 +63,8 @@ export enum MessageTypeCStoBG {
     DOCUMENT_CONNECT = 'cs-bg-document-connect',
     DOCUMENT_FORGET = 'cs-bg-document-forget',
     DOCUMENT_FREEZE = 'cs-bg-document-freeze',
-    DOCUMENT_RESUME = 'cs-bg-document-resume'
+    DOCUMENT_RESUME = 'cs-bg-document-resume',
+    AI_PAGE_DIGEST = 'cs-bg-ai-page-digest'
 }
 
 export enum DebugMessageTypeCStoBG {

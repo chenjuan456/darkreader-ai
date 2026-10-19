@@ -3,10 +3,11 @@ import {getContext} from 'malevic/dom';
 
 import type {ViewProps} from '../../../definitions';
 import {Overlay} from '../../controls';
-import {AdvancedIcon, HelpIcon, KeyboardIcon, KeyIcon, ListIcon, SettingsIcon, WatchIcon} from '../../icons';
+import {AdvancedIcon, AIIcon, HelpIcon, KeyboardIcon, KeyIcon, ListIcon, SettingsIcon, WatchIcon} from '../../icons';
 import {AboutTab} from '../about/about-tab';
 import {ActivationTab} from '../activation/activation-tab';
 import {AdvancedTab} from '../advanced/advanced-tab';
+import {AITab} from '../ai/ai-tab';
 import {AutomationTab} from '../automation/automation-tab';
 import {GeneralTab} from '../general/general-tab';
 import {HotkeysTab} from '../hotkeys/hotkeys-tab';
@@ -31,6 +32,7 @@ export default function Body(props: BodyProps): Malevic.Child {
         <body>
             <header>
                 <img id="logo" src="../assets/images/darkreader-type.svg" alt="Dark Reader" />
+                <span id="logo-ai">AI</span>
                 <h1 id="title">Settings</h1>
             </header>
             <TabPanel activeTabId={store.activeTabId} onTabChange={onSettingsTabChange}>
@@ -51,6 +53,9 @@ export default function Body(props: BodyProps): Malevic.Child {
                 </TabPanel.Tab>
                 <TabPanel.Tab id="advanced" label="Advanced" icon={<AdvancedIcon />} iconClass="settings-icon-advanced">
                     <AdvancedTab {...props} />
+                </TabPanel.Tab>
+                <TabPanel.Tab id="ai" label="AI" icon={<AIIcon />} iconClass="settings-icon-ai">
+                    <AITab {...props} />
                 </TabPanel.Tab>
                 <TabPanel.Tab id="about" label="About" icon={<HelpIcon />} iconClass="settings-icon-about">
                     <AboutTab {...props} />

@@ -1,0 +1,35 @@
+@import "../../theme";
+
+.copy-button {
+    background-color: transparent;
+    border: @size-border solid @color-border;
+    border-radius: 0;
+    box-sizing: border-box;
+    color: @color-input-fore;
+    cursor: pointer;
+    font: inherit;
+    font-size: @size-text-small;
+    line-height: @size-text-small-height;
+    margin: 0;
+    padding: 0.2em 0.5em;
+    transition: background-color @time-fast, color @time-fast;
+
+    &:hover {
+        background-color: @color-control-hover;
+        color: @color-control-fore;
+    }
+
+    &:active {
+        background-color: @color-control-active;
+    }
+
+    &--done {
+        border-color: @color-ok-fore;
+        color: @color-ok-fore;
+    }
+
+    &--failed {
+        border-color: @color-error;
+        color: @color-error;
+    }
+}

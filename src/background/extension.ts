@@ -1,4 +1,12 @@
-import type {ExtensionData, Theme, Shortcuts, UserSettings, TabInfo, TabData, Command, DevToolsData} from '../definitions';
+import type {ExtensionData, Theme, Shortcuts, UserSettings, TabInfo, TabData, Command, DevToolsData, DynamicThemeFix} from '../definitions';
+import * as AIClient from '../ai/client';
+import {collectDigestInPage} from '../ai/collect-in-page';
+import * as AIGenerate from '../ai/generate';
+import * as AIPending from '../ai/pending';
+import {startElementPicker} from '../ai/picker';
+import type {AIScheme} from '../ai/scheme';
+import * as AISettingsStore from '../ai/settings';
+import * as AIStore from '../ai/store';
 import createCSSFilterStylesheet from '../generators/css-filter';
 import {getDetectorHintsFor} from '../generators/detector-hints';
 import {getDynamicThemeFixesFor} from '../generators/dynamic-theme';
@@ -249,6 +257,7 @@ export class Extension {
             ConfigManager.load({local: true}),
             Extension.MV3syncSystemColorStateManager(null),
             UserStorage.loadSettings(),
+            AIStore.loadAllSchemes(),
         ]);
 
         if (UserStorage.settings.enableContextMenus && !Extension.registeredContextMenus) {
@@ -298,7 +307,299 @@ export class Extension {
             resetActivation: Extension.resetActivation,
             hideHighlights: UIHighlights.hideHighlights,
             waitUntilReady: Extension.waitUntilReady,
+            getAISettings: () => AISettingsStore.loadAISettings(),
+            saveAISettings: (settings) => AISettingsStore.saveAISettings(settings),
+            getAIStore: () => AISettingsStore.loadAIStore(),
+            saveAIStore: (store) => AISettingsStore.saveAIStore(store),
+            testAIConnection: async (settings) => {
+                const current = await AISettingsStore.loadAISettings();
+                const effective = {...current, ...settings};
+                return await AIClient.testConnectivity(effective);
+            },
+            generateAIScheme: (tabId) => Extension.generateAISchemeForTab(tabId),
+            refineAIScheme: (data) => Extension.refineAIScheme(data),
+            pickAIElement: (tabId) => Extension.pickAIElement(tabId),
+            getAIPending: (tabId) => Extension.getAIPending(tabId),
+            clearAIPending: () => AIPending.clearPending(),
+            getAISchemeStatus: (tabId) => Extension.getAISchemeStatus(tabId),
+            clearAIScheme: (tabId) => Extension.clearAISchemeForTab(tabId),
+            exportAISchemes: () => Extension.exportAISchemes(),
+            importAISchemes: (data) => Extension.importAISchemes(data),
+            setAIScope: (data) => Extension.setAIScope(data),
         };
+    }
+
+    /** 读取指定标签页的 AI 方案状态 */
+    private static async getAISchemeStatus(tabId: number): Promise<{domain: string; hasScheme: boolean; createdAt: number | null; reason: string; scheme: any} | null> {
+        try {
+            const tab = await new Promise<chrome.tabs.Tab | null>((resolve) => {
+                chrome.tabs.get(tabId, (t) => resolve(chrome.runtime.lastError ? null : t));
+            });
+            if (!tab || !tab.url) {
+                return null;
+            }
+            const domain = AIStore.normalizeDomain(tab.url);
+            const scheme = await AIStore.getScheme(tab.url);
+            return {
+                domain,
+                hasScheme: Boolean(scheme),
+                createdAt: scheme ? scheme.createdAt : null,
+                reason: scheme ? scheme.reason : '',
+                scheme: scheme ? {
+                    theme: scheme.theme,
+                    fixes: scheme.fixes,
+                    reason: scheme.reason,
+                    createdAt: scheme.createdAt,
+                    model: scheme.model,
+                } : null,
+            };
+        } catch (err) {
+            return null;
+        }
+    }
+
+    /**
+     * 为指定标签页生成 AI 深色方案。
+     *
+     * 流程：注入采集脚本 -> 拿摘要 -> 调用 LLM -> 校验 -> 落盘 -> 重新应用主题
+     */
+    private static async generateAISchemeForTab(tabId: number): Promise<{ok: boolean; error?: string; reason?: string; durationMs: number; usage?: any}> {
+        const start = Date.now();
+
+        const settings = await AISettingsStore.loadAISettings();
+        if (!settings.enabled) {
+            return {ok: false, error: '请先在设置中启用 AI 定制', durationMs: Date.now() - start};
+        }
+
+        // 1. 在页面里执行采集
+        let digest: any = null;
+        try {
+            const results = await chrome.scripting.executeScript({
+                target: {tabId},
+                func: collectDigestInPage,
+            });
+            digest = results && results[0] && results[0].result;
+        } catch (err: any) {
+            return {ok: false, error: `无法读取页面：${err?.message ?? String(err)}`, durationMs: Date.now() - start};
+        }
+
+        if (!digest) {
+            return {ok: false, error: '页面采集失败（可能是不允许注入的页面）', durationMs: Date.now() - start};
+        }
+
+        // 2. 调用 LLM
+        const generated = await AIGenerate.generateScheme(digest);
+        if (!generated.ok || !generated.scheme) {
+            return {ok: false, error: generated.error, durationMs: Date.now() - start};
+        }
+
+        // 3. 落盘（按域名范围）
+        await AIStore.saveScheme(digest.domain, generated.scheme, 'domain');
+
+        // 4. 立即应用到该标签页
+        try {
+            await Extension.applyToTab(tabId);
+        } catch (err) {
+            // 应用失败不影响落盘，用户刷新即可
+        }
+
+        return {
+            ok: true,
+            reason: generated.scheme.reason,
+            durationMs: Date.now() - start,
+            usage: generated.usage,
+        };
+    }
+
+    /** 清除某标签页所属站点的 AI 方案，并恢复原生主题 */
+    private static async clearAISchemeForTab(tabId: number): Promise<{ok: boolean}> {
+        try {
+            const tab = await new Promise<chrome.tabs.Tab | null>((resolve) => {
+                chrome.tabs.get(tabId, (t) => resolve(chrome.runtime.lastError ? null : t));
+            });
+            if (tab && tab.url) {
+                await AIStore.removeScheme(tab.url);
+            }
+            await Extension.applyToTab(tabId);
+            return {ok: true};
+        } catch (err) {
+            return {ok: false};
+        }
+    }
+
+    /** 把当前主题重新下发给指定标签页 */
+    private static async applyToTab(tabId: number): Promise<void> {
+        await Extension.waitUntilReady();
+        await TabManager.sendMessageToTab(tabId);
+    }
+
+    /**
+     * 在页面里启动元素拾取。
+     *
+     * 关键点：popup 在用户去点页面时必然关闭，所以拾取结果不能只靠
+     * 消息回传给 popup —— 必须在这里直接写进 storage.session，
+     * 用户重新打开 popup 时再恢复。
+     */
+    private static async pickAIElement(tabId: number): Promise<{ok: boolean; element?: any; error?: string}> {
+        try {
+            const results = await chrome.scripting.executeScript({
+                target: {tabId},
+                func: startElementPicker,
+            });
+            const picked = results && results[0] && results[0].result;
+            if (!picked) {
+                return {ok: false, error: '已取消选择'};
+            }
+
+            // 立刻持久化，这样即使 popup 已经关闭，重新打开也能恢复
+            try {
+                const tab = await new Promise<chrome.tabs.Tab | null>((resolve) => {
+                    chrome.tabs.get(tabId, (t) => resolve(chrome.runtime.lastError ? null : t));
+                });
+                const url = (tab && tab.url) || '';
+                await AIPending.addPending(tabId, url, {
+                    selector: picked.selector,
+                    tag: picked.tag,
+                    background: picked.background,
+                    color: picked.color,
+                    textPreview: picked.textPreview || '',
+                    note: '',
+                    tabId,
+                });
+            } catch (err) {
+                // 持久化失败不影响本次返回，popup 还活着的话仍能收到
+            }
+
+            return {ok: true, element: picked};
+        } catch (err: any) {
+            return {ok: false, error: `无法在页面上拾取元素：${err?.message ?? String(err)}`};
+        }
+    }
+
+    /** 读取某标签页已拾取但未提交的待修复元素 */
+    private static async getAIPending(tabId: number): Promise<any[]> {
+        try {
+            const tab = await new Promise<chrome.tabs.Tab | null>((resolve) => {
+                chrome.tabs.get(tabId, (t) => resolve(chrome.runtime.lastError ? null : t));
+            });
+            const url = (tab && tab.url) || '';
+            return await AIPending.loadPending(tabId, url);
+        } catch (err) {
+            return [];
+        }
+    }
+
+    /**
+     * 基于用户指出的问题元素，对现有方案做增量修复。
+     */
+    private static async refineAIScheme(payload: {tabId: number; feedbacks: any[]}): Promise<{ok: boolean; error?: string; reason?: string; durationMs: number; usage?: any}> {
+        const start = Date.now();
+        const {tabId, feedbacks} = payload || {} as any;
+
+        const settings = await AISettingsStore.loadAISettings();
+        if (!settings.enabled) {
+            return {ok: false, error: '请先在设置中启用 AI 定制', durationMs: Date.now() - start};
+        }
+        if (!Array.isArray(feedbacks) || feedbacks.length === 0) {
+            return {ok: false, error: '没有待修复的元素', durationMs: Date.now() - start};
+        }
+
+        const tab = await new Promise<chrome.tabs.Tab | null>((resolve) => {
+            chrome.tabs.get(tabId, (t) => resolve(chrome.runtime.lastError ? null : t));
+        });
+        if (!tab || !tab.url) {
+            return {ok: false, error: '无法获取当前标签页', durationMs: Date.now() - start};
+        }
+
+        const current = await AIStore.getScheme(tab.url);
+        if (!current) {
+            return {ok: false, error: '当前站点还没有方案，请先生成', durationMs: Date.now() - start};
+        }
+
+        // 重新采集一次页面摘要（页面可能已变化）
+        let digest: any = null;
+        try {
+            const results = await chrome.scripting.executeScript({
+                target: {tabId},
+                func: collectDigestInPage,
+            });
+            digest = results && results[0] && results[0].result;
+        } catch (err: any) {
+            return {ok: false, error: `无法读取页面：${err?.message ?? String(err)}`, durationMs: Date.now() - start};
+        }
+        if (!digest) {
+            return {ok: false, error: '页面采集失败', durationMs: Date.now() - start};
+        }
+
+        const refined = await AIGenerate.refineScheme(digest, current, feedbacks);
+        if (!refined.ok || !refined.scheme) {
+            return {ok: false, error: refined.error, durationMs: Date.now() - start};
+        }
+
+        // 保留原来的存储范围（域名级还是路径级）
+        const record = await AIStore.getRecord(tab.url);
+        const scope = record ? record.scope : 'domain';
+        const key = record ? record.key : digest.domain;
+        await AIStore.saveScheme(key, refined.scheme, scope);
+
+        try {
+            await Extension.applyToTab(tabId);
+        } catch (err) {
+            // 忽略
+        }
+
+        return {
+            ok: true,
+            reason: refined.scheme.reason,
+            durationMs: Date.now() - start,
+            usage: refined.usage,
+        };
+    }
+
+    /** 导出全部方案 */
+    private static async exportAISchemes(): Promise<any> {
+        return await AIStore.exportSchemes();
+    }
+
+    /** 导入方案 */
+    private static async importAISchemes(payload: {data: any; mode: 'merge' | 'replace'}): Promise<any> {
+        const result = await AIStore.importSchemes(payload?.data, payload?.mode || 'merge');
+        await Extension.applyToTab(await Extension.getActiveTabId());
+        return result;
+    }
+
+    /**
+     * 调整当前站点方案的生效范围（域名级 / 路径级）。
+     */
+    private static async setAIScope(payload: {tabId: number; scope: 'domain' | 'path'}): Promise<{ok: boolean; error?: string}> {
+        const {tabId, scope} = payload || {} as any;
+        const tab = await new Promise<chrome.tabs.Tab | null>((resolve) => {
+            chrome.tabs.get(tabId, (t) => resolve(chrome.runtime.lastError ? null : t));
+        });
+        if (!tab || !tab.url) {
+            return {ok: false, error: '无法获取当前标签页'};
+        }
+        const record = await AIStore.getRecord(tab.url);
+        if (!record) {
+            return {ok: false, error: '当前站点没有方案'};
+        }
+        if (record.scope === scope) {
+            return {ok: true};
+        }
+        // 换 key 重新保存
+        await AIStore.removeSchemeByKey(record.key);
+        await AIStore.saveScheme(tab.url, record.scheme, scope);
+        await Extension.applyToTab(tabId);
+        return {ok: true};
+    }
+
+    private static async getActiveTabId(): Promise<number> {
+        const tab = await new Promise<chrome.tabs.Tab | null>((resolve) => {
+            chrome.tabs.query({active: true, currentWindow: true}, (tabs) => {
+                resolve(chrome.runtime.lastError || !tabs || !tabs[0] ? null : tabs[0]);
+            });
+        });
+        return tab && tab.id != null ? tab.id : -1;
     }
 
     private static onCommandInternal = async (command: Command, tabId: number | null, frameId: number | null, frameURL: string | null) => {
@@ -371,7 +672,7 @@ export class Extension {
             Extension.registeredContextMenus = false;
             chrome.contextMenus.create({
                 id: 'DarkReader-top',
-                title: 'Dark Reader',
+                title: 'Dark Reader AI',
             }, () => {
                 if (chrome.runtime.lastError) {
                     // Failed to create the context menu
@@ -715,6 +1016,11 @@ export class Extension {
                 const mode = Extension.autoState === 'scheme-dark' ? 1 : 0;
                 theme = {...theme, mode};
             }
+            // AI 定制的配色：站点级覆盖，优先级高于全局/预设，但不改变引擎选择
+            const aiScheme = AIStore.getCachedSchemeSync(tabURL);
+            if (aiScheme && aiScheme.theme) {
+                theme = {...theme, ...aiScheme.theme};
+            }
             const detectorHints = settings.detectDarkTheme ? getDetectorHintsFor(url, ConfigManager.DETECTOR_HINTS_RAW!, ConfigManager.DETECTOR_HINTS_INDEX!) : null;
             const detectDarkTheme = (
                 settings.detectDarkTheme &&
@@ -777,11 +1083,13 @@ export class Extension {
                 }
                 case ThemeEngine.dynamicTheme: {
                     const fixes = getDynamicThemeFixesFor(url, ConfigManager.DYNAMIC_THEME_FIXES_RAW!, ConfigManager.DYNAMIC_THEME_FIXES_INDEX!, UserStorage.settings.enableForPDF);
+                    // AI 生成的站点修复规则：追加到内置规则之后，后者优先生效
+                    const mergedFixes = mergeAIFixes(fixes, aiScheme);
                     return {
                         type: MessageTypeBGtoCS.ADD_DYNAMIC_THEME,
                         data: {
                             theme,
-                            fixes,
+                            fixes: mergedFixes,
                             isIFrame: !isTopFrame,
                             detectDarkTheme,
                             detectorHints,
@@ -807,3 +1115,60 @@ export class Extension {
         logInfo('saved', UserStorage.settings);
     }
 }
+
+/**
+ * 把 AI 生成的站点修复规则合并进内置规则。
+ *
+ * 合并语义（与引擎的叠加顺序一致）：
+ * - 数组类字段做并集去重（invert / ignoreInlineStyle / ignoreImageAnalysis / ignoreCSSUrl）
+ * - css 字符串采用「内置在前 + AI 在后」，后写的规则优先级更高
+ *
+ * 注意 dynamic-theme.ts 的约束：fixes[0].url[0] 必须是 '*' 通配块，
+ * 所以 AI 块只能追加在末尾，不能插到前面。
+ */
+function mergeAIFixes(base: DynamicThemeFix[] | null, aiScheme: AIScheme | null): DynamicThemeFix[] | null {
+    if (!aiScheme || !aiScheme.fixes) {
+        return base;
+    }
+    const ai = aiScheme.fixes;
+    const hasContent = (ai.invert?.length || 0) + (ai.ignoreInlineStyle?.length || 0)
+        + (ai.ignoreImageAnalysis?.length || 0) + (ai.css ? 1 : 0) > 0;
+    if (!hasContent) {
+        return base;
+    }
+
+    if (!base || base.length === 0) {
+        // 没有内置规则时，AI 规则单独成块；仍需满足通配块在前的约束
+        return [{
+            url: ['*'],
+            invert: ai.invert || [],
+            css: ai.css || '',
+            ignoreInlineStyle: ai.ignoreInlineStyle || [],
+            ignoreImageAnalysis: ai.ignoreImageAnalysis || [],
+            ignoreCSSUrl: ai.ignoreCSSUrl || [],
+            disableStyleSheetsProxy: false,
+            disableCustomElementRegistryProxy: false,
+        }];
+    }
+
+    const result = base.slice();
+    const last = result[result.length - 1];
+    const union = (a: string[] | undefined, b: string[] | undefined) => {
+        const set = new Set<string>();
+        (a || []).forEach((x) => set.add(x));
+        (b || []).forEach((x) => set.add(x));
+        return Array.from(set);
+    };
+
+    result[result.length - 1] = {
+        ...last,
+        invert: union(last.invert, ai.invert),
+        css: [last.css, ai.css].filter(Boolean).join('\n'),
+        ignoreInlineStyle: union(last.ignoreInlineStyle, ai.ignoreInlineStyle),
+        ignoreImageAnalysis: union(last.ignoreImageAnalysis, ai.ignoreImageAnalysis),
+        ignoreCSSUrl: union(last.ignoreCSSUrl, ai.ignoreCSSUrl),
+    };
+
+    return result;
+}
+

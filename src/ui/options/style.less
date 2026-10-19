@@ -4,6 +4,7 @@
 @import "./tab-panel/tab-panel";
 @import "./about/about";
 @import "./advanced/advanced";
+@import "./ai/ai";
 @import "./automation/automation";
 @import "./hotkeys/hotkeys";
 @import "./site-list/site-list";
@@ -17,7 +18,23 @@ html {
     display: inline-block;
     font-size: @size-text-large;
     height: @size-control-inner;
+    vertical-align: middle;
     width: 15rem;
+}
+
+#logo-ai {
+    background: linear-gradient(135deg, #8b5cf6, #3884ff);
+    border-radius: 999px;
+    color: #fff;
+    display: inline-block;
+    font-size: @size-text-small;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    line-height: 1;
+    margin-left: -2.5rem;
+    padding: 0.2em 0.45em;
+    vertical-align: middle;
+    transform: translateY(-0.55rem);
 }
 
 #title {

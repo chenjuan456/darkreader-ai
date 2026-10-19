@@ -69,6 +69,12 @@ if (__CHROMIUM_MV3__) {
     chrome.runtime.onInstalled.addListener(async () => {
         Extension.isFirstLoad = true;
     });
+    // 点击工具栏图标直接打开侧边栏（侧边栏常驻，不会失焦销毁）
+    if (chrome.sidePanel && chrome.sidePanel.setPanelBehavior) {
+        chrome.sidePanel
+            .setPanelBehavior({openPanelOnActionClick: true})
+            .catch((error) => console.error('sidePanel.setPanelBehavior failed', error));
+    }
     keepListeningToEvents();
 }
 

@@ -63,6 +63,11 @@ const jsEntries = [
         reloadType: reload.UI,
     },
     {
+        src: 'src/ui/sidepanel/index.tsx',
+        dest: 'ui/sidepanel/index.js',
+        reloadType: reload.UI,
+    },
+    {
         src: 'src/ui/stylesheet-editor/index.tsx',
         dest: 'ui/stylesheet-editor/index.js',
         reloadType: reload.UI,

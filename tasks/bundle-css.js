@@ -27,6 +27,10 @@ const cssEntries = [
         dest: 'ui/popup/style.css',
     },
     {
+        src: 'src/ui/sidepanel/style.less',
+        dest: 'ui/sidepanel/style.css',
+    },
+    {
         src: 'src/ui/stylesheet-editor/style.less',
         dest: 'ui/stylesheet-editor/style.css',
     },

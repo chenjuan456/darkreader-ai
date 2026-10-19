@@ -4,6 +4,7 @@ import CheckBox from './checkbox';
 import ColorDropDown from './color-dropdown';
 import ColorPicker from './color-picker';
 import ControlGroup from './control-group/control-group';
+import CopyButton from './copy-button';
 import DropDown from './dropdown';
 import MessageBox from './message-box';
 import MultiSwitch from './multi-switch';
@@ -27,6 +28,7 @@ export {
     ColorDropDown,
     ColorPicker,
     ControlGroup,
+    CopyButton,
     DropDown,
     MessageBox,
     MultiSwitch,
