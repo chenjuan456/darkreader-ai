@@ -27,6 +27,7 @@ export interface ExtensionAdapter {
     saveAISettings: (settings: any) => Promise<any>;
     getAIStore: () => Promise<any>;
     saveAIStore: (store: any) => Promise<any>;
+    reapplyAIToAllTabs: () => Promise<any>;
     testAIConnection: (settings: any) => Promise<any>;
     generateAIScheme: (tabId: number) => Promise<any>;
     refineAIScheme: (data: any) => Promise<any>;
@@ -34,6 +35,7 @@ export interface ExtensionAdapter {
     getAIPending: (tabId: number) => Promise<any>;
     clearAIPending: () => Promise<any>;
     getAISchemeStatus: (tabId: number) => Promise<any>;
+    setAISiteMode: (data: any) => Promise<any>;
     clearAIScheme: (tabId: number) => Promise<any>;
     exportAISchemes: () => Promise<any>;
     importAISchemes: (data: any) => Promise<any>;
@@ -85,6 +87,7 @@ export default class Messenger {
                 MessageTypeUItoBG.AI_SAVE_SETTINGS,
                 MessageTypeUItoBG.AI_GET_STORE,
                 MessageTypeUItoBG.AI_SAVE_STORE,
+                MessageTypeUItoBG.AI_REAPPLY,
                 MessageTypeUItoBG.AI_TEST_CONNECTION,
                 MessageTypeUItoBG.AI_GENERATE_SCHEME,
                 MessageTypeUItoBG.AI_REFINE_SCHEME,
@@ -92,6 +95,7 @@ export default class Messenger {
                 MessageTypeUItoBG.AI_GET_PENDING,
                 MessageTypeUItoBG.AI_CLEAR_PENDING,
                 MessageTypeUItoBG.AI_GET_SCHEME_STATUS,
+                MessageTypeUItoBG.AI_SET_SITE_MODE,
                 MessageTypeUItoBG.AI_CLEAR_SCHEME,
                 MessageTypeUItoBG.AI_EXPORT_SCHEMES,
                 MessageTypeUItoBG.AI_IMPORT_SCHEMES,
@@ -197,6 +201,9 @@ export default class Messenger {
             case MessageTypeUItoBG.AI_SAVE_STORE:
                 Messenger.adapter.saveAIStore(data).then((store) => sendResponse({data: store}));
                 break;
+            case MessageTypeUItoBG.AI_REAPPLY:
+                Messenger.adapter.reapplyAIToAllTabs().then((result) => sendResponse({data: result}));
+                break;
             case MessageTypeUItoBG.AI_TEST_CONNECTION:
                 Messenger.adapter.testAIConnection(data).then((result) => sendResponse({data: result}));
                 break;
@@ -205,6 +212,9 @@ export default class Messenger {
                 break;
             case MessageTypeUItoBG.AI_GET_SCHEME_STATUS:
                 Messenger.adapter.getAISchemeStatus(data.tabId).then((result) => sendResponse({data: result}));
+                break;
+            case MessageTypeUItoBG.AI_SET_SITE_MODE:
+                Messenger.adapter.setAISiteMode(data).then((result) => sendResponse({data: result}));
                 break;
             case MessageTypeUItoBG.AI_CLEAR_SCHEME:
                 Messenger.adapter.clearAIScheme(data.tabId).then((result) => sendResponse({data: result}));

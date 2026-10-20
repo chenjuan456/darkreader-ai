@@ -258,6 +258,8 @@ export class Extension {
             Extension.MV3syncSystemColorStateManager(null),
             UserStorage.loadSettings(),
             AIStore.loadAllSchemes(),
+            // 预热 AI 设置缓存：getTabMessage 是同步的，需要同步读取「仅 AI 模式」
+            AISettingsStore.loadAIStore(),
         ]);
 
         if (UserStorage.settings.enableContextMenus && !Extension.registeredContextMenus) {
@@ -311,6 +313,12 @@ export class Extension {
             saveAISettings: (settings) => AISettingsStore.saveAISettings(settings),
             getAIStore: () => AISettingsStore.loadAIStore(),
             saveAIStore: (store) => AISettingsStore.saveAIStore(store),
+            reapplyAIToAllTabs: async () => {
+                // 「仅 AI 模式」改变后，所有标签页的判定结果都会变，需要重新下发
+                await Extension.waitUntilReady();
+                await TabManager.sendMessage(false);
+                return {ok: true};
+            },
             testAIConnection: async (settings) => {
                 const current = await AISettingsStore.loadAISettings();
                 const effective = {...current, ...settings};
@@ -322,6 +330,7 @@ export class Extension {
             getAIPending: (tabId) => Extension.getAIPending(tabId),
             clearAIPending: () => AIPending.clearPending(),
             getAISchemeStatus: (tabId) => Extension.getAISchemeStatus(tabId),
+            setAISiteMode: (data) => Extension.setAISiteMode(data),
             clearAIScheme: (tabId) => Extension.clearAISchemeForTab(tabId),
             exportAISchemes: () => Extension.exportAISchemes(),
             importAISchemes: (data) => Extension.importAISchemes(data),
@@ -330,7 +339,7 @@ export class Extension {
     }
 
     /** 读取指定标签页的 AI 方案状态 */
-    private static async getAISchemeStatus(tabId: number): Promise<{domain: string; hasScheme: boolean; createdAt: number | null; reason: string; scheme: any} | null> {
+    private static async getAISchemeStatus(tabId: number): Promise<{domain: string; hasScheme: boolean; createdAt: number | null; reason: string; scheme: any; siteMode: 'ai' | 'default' | null} | null> {
         try {
             const tab = await new Promise<chrome.tabs.Tab | null>((resolve) => {
                 chrome.tabs.get(tabId, (t) => resolve(chrome.runtime.lastError ? null : t));
@@ -340,11 +349,13 @@ export class Extension {
             }
             const domain = AIStore.normalizeDomain(tab.url);
             const scheme = await AIStore.getScheme(tab.url);
+            const siteMode = await AIStore.getSiteMode(tab.url);
             return {
                 domain,
                 hasScheme: Boolean(scheme),
                 createdAt: scheme ? scheme.createdAt : null,
                 reason: scheme ? scheme.reason : '',
+                siteMode,
                 scheme: scheme ? {
                     theme: scheme.theme,
                     fixes: scheme.fixes,
@@ -355,6 +366,32 @@ export class Extension {
             };
         } catch (err) {
             return null;
+        }
+    }
+
+    /**
+     * 切换某标签页所属站点的配色来源。
+     *
+     * mode = 'ai'      使用 AI 生成的方案
+     * mode = 'default' 使用 Dark Reader 自带深色（忽略 AI 方案）
+     */
+    private static async setAISiteMode(payload: {tabId: number; mode: 'ai' | 'default'}): Promise<{ok: boolean; error?: string}> {
+        const {tabId, mode} = payload || {} as any;
+        if (mode !== 'ai' && mode !== 'default') {
+            return {ok: false, error: '无效的模式'};
+        }
+        try {
+            const tab = await new Promise<chrome.tabs.Tab | null>((resolve) => {
+                chrome.tabs.get(tabId, (t) => resolve(chrome.runtime.lastError ? null : t));
+            });
+            if (!tab || !tab.url) {
+                return {ok: false, error: '无法获取当前标签页'};
+            }
+            await AIStore.setSiteMode(tab.url, mode);
+            await Extension.applyToTab(tabId);
+            return {ok: true};
+        } catch (err: any) {
+            return {ok: false, error: err?.message ?? String(err)};
         }
     }
 
@@ -371,14 +408,12 @@ export class Extension {
             return {ok: false, error: '请先在设置中启用 AI 定制', durationMs: Date.now() - start};
         }
 
-        // 1. 在页面里执行采集
+        // 1. 在页面里执行采集（必须在「原始亮色」状态下采集，
+        //    否则读到的背景/文字色都是被 Dark Reader 改暗之后的值，
+        //    AI 会误判该站本来就是暗色）
         let digest: any = null;
         try {
-            const results = await chrome.scripting.executeScript({
-                target: {tabId},
-                func: collectDigestInPage,
-            });
-            digest = results && results[0] && results[0].result;
+            digest = await Extension.collectFromOriginalPage(tabId);
         } catch (err: any) {
             return {ok: false, error: `无法读取页面：${err?.message ?? String(err)}`, durationMs: Date.now() - start};
         }
@@ -431,6 +466,50 @@ export class Extension {
     private static async applyToTab(tabId: number): Promise<void> {
         await Extension.waitUntilReady();
         await TabManager.sendMessageToTab(tabId);
+    }
+
+    /**
+     * 在「未被深色改造」的原始页面上采集摘要。
+     *
+     * 为什么需要：
+     * Dark Reader 是通过注入高优先级 CSS 来改色的，`getComputedStyle`
+     * 读到的是改暗之后的值。如果直接采集，AI 会把「已经变暗的页面」
+     * 当成原始配色，生成的方案就会跑偏（例如误判该站本身就是暗色站）。
+     *
+     * 做法：临时发 CLEAN_UP 让页面恢复原样 → 等样式回退 → 采集 → 恢复主题。
+     * 即使中途失败也一定会恢复主题，不会把页面留在亮色状态。
+     */
+    private static async collectFromOriginalPage(tabId: number): Promise<any> {
+        const cleanUp = () => new Promise<void>((resolve) => {
+            try {
+                chrome.tabs.sendMessage(tabId, {type: MessageTypeBGtoCS.CLEAN_UP}, () => {
+                    // 忽略 lastError：某些帧可能没有监听者
+                    void chrome.runtime.lastError;
+                    resolve();
+                });
+            } catch (err) {
+                resolve();
+            }
+        });
+
+        await cleanUp();
+        // 给样式一次回退的机会（CSS 移除是同步的，但要等一次重排）
+        await new Promise((resolve) => setTimeout(resolve, 120));
+
+        try {
+            const results = await chrome.scripting.executeScript({
+                target: {tabId},
+                func: collectDigestInPage,
+            });
+            return results && results[0] && results[0].result;
+        } finally {
+            // 无论采集成功与否，都把主题恢复回去
+            try {
+                await Extension.applyToTab(tabId);
+            } catch (err) {
+                // 忽略：下次导航会重新下发
+            }
+        }
     }
 
     /**
@@ -519,11 +598,8 @@ export class Extension {
         // 重新采集一次页面摘要（页面可能已变化）
         let digest: any = null;
         try {
-            const results = await chrome.scripting.executeScript({
-                target: {tabId},
-                func: collectDigestInPage,
-            });
-            digest = results && results[0] && results[0].result;
+            // 同样要在原始亮色页面上采集，否则读到的是已改暗的颜色
+            digest = await Extension.collectFromOriginalPage(tabId);
         } catch (err: any) {
             return {ok: false, error: `无法读取页面：${err?.message ?? String(err)}`, durationMs: Date.now() - start};
         }
@@ -1009,6 +1085,20 @@ export class Extension {
         const settings = UserStorage.settings;
         const tabInfo = Extension.getTabInfo(tabURL);
         if (Extension.isExtensionSwitchedOn() && isURLEnabled(tabURL, settings, tabInfo) && !topFrameHasDarkTheme) {
+            // AI 方案（可能为 null）与站点偏好先取出来
+            const aiScheme = AIStore.getCachedSchemeSync(tabURL);
+            const siteMode = AIStore.getCachedSiteModeSync(tabURL);
+            // 用户对该站点明确选了「默认深色」→ 忽略 AI 方案
+            const wantsDefault = siteMode === 'default';
+            // 该站点实际生效的 AI 方案（选默认深色时视为没有）
+            const effectiveAIScheme = wantsDefault ? null : aiScheme;
+
+            // 仅 AI 模式：既没有 AI 方案、也没选默认深色的站点保持原样
+            if (AISettingsStore.isAIOnlyMode() && !effectiveAIScheme && !wantsDefault) {
+                logInfo(`AI-only mode: no scheme for ${tabURL}, leaving page untouched`);
+                return {type: MessageTypeBGtoCS.CLEAN_UP};
+            }
+
             const custom = settings.customThemes.find(({url: urlList}) => isURLInList(tabURL, urlList));
             const preset = custom ? null : settings.presets.find(({urls}) => isURLInList(tabURL, urls));
             let theme = custom ? custom.theme : preset ? preset.theme : settings.theme;
@@ -1017,9 +1107,8 @@ export class Extension {
                 theme = {...theme, mode};
             }
             // AI 定制的配色：站点级覆盖，优先级高于全局/预设，但不改变引擎选择
-            const aiScheme = AIStore.getCachedSchemeSync(tabURL);
-            if (aiScheme && aiScheme.theme) {
-                theme = {...theme, ...aiScheme.theme};
+            if (effectiveAIScheme && effectiveAIScheme.theme) {
+                theme = {...theme, ...effectiveAIScheme.theme};
             }
             const detectorHints = settings.detectDarkTheme ? getDetectorHintsFor(url, ConfigManager.DETECTOR_HINTS_RAW!, ConfigManager.DETECTOR_HINTS_INDEX!) : null;
             const detectDarkTheme = (
@@ -1084,7 +1173,8 @@ export class Extension {
                 case ThemeEngine.dynamicTheme: {
                     const fixes = getDynamicThemeFixesFor(url, ConfigManager.DYNAMIC_THEME_FIXES_RAW!, ConfigManager.DYNAMIC_THEME_FIXES_INDEX!, UserStorage.settings.enableForPDF);
                     // AI 生成的站点修复规则：追加到内置规则之后，后者优先生效
-                    const mergedFixes = mergeAIFixes(fixes, aiScheme);
+                    // 选了「默认深色」的站点不合并 AI 规则
+                    const mergedFixes = mergeAIFixes(fixes, effectiveAIScheme);
                     return {
                         type: MessageTypeBGtoCS.ADD_DYNAMIC_THEME,
                         data: {

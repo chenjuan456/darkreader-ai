@@ -3,7 +3,9 @@ import {sync} from 'malevic/dom';
 
 import type {ExtensionData} from '../../definitions';
 import {isFirefox} from '../../utils/platform';
+import {isURLEnabled} from '../../utils/url';
 import Connector from '../connect/connector';
+import {MultiSwitch} from '../controls';
 import AIPage from '../popup/ai-page';
 
 /**
@@ -23,6 +25,19 @@ interface SidePanelStore {
     data: ExtensionData | null;
     actions: Connector | null;
     error: string | null;
+    /** 当前站点使用的配色来源；null = 尚未读取 */
+    siteMode: 'ai' | 'default' | null;
+    /** 当前站点是否已生成 AI 方案 */
+    hasScheme: boolean;
+    /** 切换配色来源进行中 */
+    switching: boolean;
+}
+
+/** 配色来源的两个选项，顺序与 SiteMode 对应 */
+const MODE_LABELS = ['AI 方案', '默认深色'];
+
+function modeLabel(mode: 'ai' | 'default' | null): string {
+    return mode === 'default' ? MODE_LABELS[1] : MODE_LABELS[0];
 }
 
 /** 从 URL 提取干净的站点显示名（去协议，截断路径） */
@@ -66,7 +81,46 @@ function renderRoot(store: SidePanelStore, onRefresh: () => void): Malevic.Spec 
     }
 
     const tab = store.data.activeTab;
-    const enabled = store.data.isEnabled;
+    const settings = store.data.settings;
+    const isGloballyOn = store.data.isEnabled;
+    const isSiteOn = tab
+        ? isURLEnabled(tab.url, settings, tab, store.data.isAllowedFileSchemeAccess)
+        : false;
+
+    /** 全局开关：同时关掉自动化，避免被时间/位置规则立刻改回去 */
+    function toggleGlobal(next: boolean) {
+        store.actions!.changeSettings({
+            enabled: next,
+            automation: {...settings.automation, enabled: false},
+        });
+    }
+
+    /** 当前站点开关 */
+    function toggleSite() {
+        store.actions!.toggleActiveTab();
+    }
+
+    /** 切换本站配色来源：AI 方案 / Dark Reader 默认深色 */
+    function switchSchemeSource(label: string) {
+        if (!tab || store.switching) {
+            return;
+        }
+        const nextMode: 'ai' | 'default' = label === MODE_LABELS[0] ? 'ai' : 'default';
+        if (nextMode === store.siteMode) {
+            return;
+        }
+        store.switching = true;
+        store.siteMode = nextMode;
+        onRefresh();
+        sendMessage('ui-bg-ai-set-site-mode', {tabId: tab.id, mode: nextMode}).then((response) => {
+            store.switching = false;
+            if (!response || response.error) {
+                // 失败时回滚显示
+                store.siteMode = nextMode === 'ai' ? 'default' : 'ai';
+            }
+            onRefresh();
+        });
+    }
 
     return (
         <body class="sidepanel-body">
@@ -80,9 +134,6 @@ function renderRoot(store: SidePanelStore, onRefresh: () => void): Malevic.Spec 
                             Dark Reader
                         </span>
                         <span class="sidepanel__badge">AI</span>
-                        <span class={{'sidepanel__status': true, 'sidepanel__status--on': enabled, 'sidepanel__status--off': !enabled}}>
-                            {enabled ? '运行中' : '已停用'}
-                        </span>
                     </div>
                     {tab ?
                         <span class="sidepanel__site" title={tab.url}>
@@ -90,6 +141,47 @@ function renderRoot(store: SidePanelStore, onRefresh: () => void): Malevic.Spec 
                             {siteLabel(tab.url)}
                         </span>
                         : <span class="sidepanel__site sidepanel__site--none">未打开网页</span>}
+
+                    <div class="sidepanel__controls">
+                        <div class="sidepanel__control">
+                            <span class="sidepanel__control-label">扩展</span>
+                            <MultiSwitch
+                                class="sidepanel__switch"
+                                options={['开启', '关闭']}
+                                value={isGloballyOn ? '开启' : '关闭'}
+                                onChange={(value) => toggleGlobal(value === '开启')}
+                            />
+                        </div>
+                        {tab ?
+                            <div class="sidepanel__control">
+                                <span class="sidepanel__control-label">本站</span>
+                                <button
+                                    class={{
+                                        'sidepanel__site-toggle': true,
+                                        'sidepanel__site-toggle--on': isSiteOn,
+                                        'sidepanel__site-toggle--off': !isSiteOn,
+                                    }}
+                                    onclick={toggleSite}
+                                >
+                                    {isSiteOn ? '已开启' : '已关闭'}
+                                </button>
+                            </div>
+                            : null}
+                    </div>
+
+                    {tab ?
+                        <div class="sidepanel__controls">
+                            <div class="sidepanel__control sidepanel__control--wide">
+                                <span class="sidepanel__control-label">配色</span>
+                                <MultiSwitch
+                                    class="sidepanel__switch"
+                                    options={MODE_LABELS}
+                                    value={modeLabel(store.siteMode)}
+                                    onChange={(value) => switchSchemeSource(value)}
+                                />
+                            </div>
+                        </div>
+                        : null}
                 </header>
                 <main class="sidepanel__body">
                     {tab ?
@@ -122,6 +214,18 @@ function renderRoot(store: SidePanelStore, onRefresh: () => void): Malevic.Spec 
     );
 }
 
+function sendMessage(type: string, data?: any): Promise<any> {
+    return new Promise((resolve) => {
+        chrome.runtime.sendMessage({type, data}, (response) => {
+            if (chrome.runtime.lastError) {
+                resolve({error: chrome.runtime.lastError.message});
+                return;
+            }
+            resolve(response);
+        });
+    });
+}
+
 async function refreshData(store: SidePanelStore, onRefresh: () => void): Promise<void> {
     try {
         if (!store.actions) {
@@ -130,6 +234,24 @@ async function refreshData(store: SidePanelStore, onRefresh: () => void): Promis
         const data = await store.actions.getData();
         store.data = data;
         store.error = null;
+
+        // 顺带取当前站点的方案状态（用于配色来源切换按钮）
+        const tabId = data.activeTab ? data.activeTab.id : null;
+        if (tabId != null) {
+            const resp = await sendMessage('ui-bg-ai-get-scheme-status', {tabId});
+            const s = resp && resp.data;
+            if (s) {
+                store.hasScheme = Boolean(s.hasScheme);
+                // 未显式设置过则跟随全局：有方案时按 AI，无方案时按默认
+                store.siteMode = s.siteMode || (s.hasScheme ? 'ai' : 'default');
+            } else {
+                store.hasScheme = false;
+                store.siteMode = 'default';
+            }
+        } else {
+            store.hasScheme = false;
+            store.siteMode = null;
+        }
     } catch (err: any) {
         store.error = `无法读取数据：${err?.message ?? String(err)}`;
     }
@@ -137,7 +259,16 @@ async function refreshData(store: SidePanelStore, onRefresh: () => void): Promis
 }
 
 function start(): void {
-    const store: SidePanelStore = {data: null, actions: null, error: null};
+    // Connector 必须同步创建：下面要立刻用它订阅设置变化，
+    // 若延后到 refreshData 里创建，订阅会因 actions 尚为 null 而被跳过
+    const store: SidePanelStore = {
+        data: null,
+        actions: new Connector(),
+        error: null,
+        siteMode: null,
+        hasScheme: false,
+        switching: false,
+    };
     const root = document.body;
 
     const onRefresh = () => {

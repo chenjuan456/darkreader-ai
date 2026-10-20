@@ -24,6 +24,66 @@ interface AITabStore {
     advanced: boolean;
     /** 导入导出结果提示 */
     transferMsg: {ok: boolean; text: string} | null;
+    /** 文本快捷导入的输入内容 */
+    importText: string;
+    /** 文本快捷导入的结果提示 */
+    importMsg: {ok: boolean; text: string} | null;
+}
+
+/** 文本导入的幽灵提示（placeholder） */
+const IMPORT_PLACEHOLDER = [
+    'https://api.deepseek.com/v1',
+    'sk-xxxxxxxxxxxxxxxxxxxxxxxx',
+    'deepseek-chat',
+].join('\n');
+
+/**
+ * 解析「三行文本」为一份配置。
+ *
+ * 约定：第一行 Base URL，第二行 API Key，第三行模型。
+ * 容错策略（避免用户因为多一个空格或标签就导入失败）：
+ * - 忽略空行与以 # 开头的注释行
+ * - 允许 "url:" / "apikey:" / "model:" 这类标签前缀
+ * - 模型行可省略（之后可在表单里补）
+ */
+export function parseConfigText(text: string): {baseURL: string; apiKey: string; model: string} | null {
+    const lines = (text || '')
+        .split(/\r?\n/)
+        .map((l) => l.trim())
+        .filter((l) => l.length > 0 && !l.startsWith('#'));
+
+    if (lines.length < 2) {
+        return null;
+    }
+
+    const stripLabel = (s: string) => s
+        .replace(/^(base\s*url|url|接口地址|地址)\s*[:：=]\s*/i, '')
+        .replace(/^(api\s*key|apikey|key|密钥)\s*[:：=]\s*/i, '')
+        .replace(/^(model|模型)\s*[:：=]\s*/i, '')
+        .trim();
+
+    const baseURL = stripLabel(lines[0]);
+    const apiKey = stripLabel(lines[1]);
+    const model = lines[2] ? stripLabel(lines[2]) : '';
+
+    if (!baseURL || !/^https?:\/\//i.test(baseURL)) {
+        return null;
+    }
+    if (!apiKey) {
+        return null;
+    }
+
+    return {baseURL, apiKey, model};
+}
+
+/** 从 Base URL 里取一个便于识别的配置名 */
+function configNameFromURL(baseURL: string): string {
+    try {
+        const host = new URL(baseURL).hostname.toLowerCase();
+        return host.replace(/^api\./, '') || '导入的配置';
+    } catch (err) {
+        return '导入的配置';
+    }
 }
 
 function sendMessage(type: string, data?: any): Promise<any> {
@@ -95,6 +155,8 @@ export function AITab(props: ViewProps): Malevic.Child {
         savedAt: null,
         advanced: false,
         transferMsg: null,
+        importText: '',
+        importMsg: null,
     });
 
     if (!store.loading && store.data === null) {
@@ -116,12 +178,12 @@ export function AITab(props: ViewProps): Malevic.Child {
             });
     }
 
-    function persist(next: AIStore, markSaved = true) {
+    function persist(next: AIStore, markSaved = true): Promise<void> {
         store.data = next;
         store.test = {status: 'idle'};
         store.saving = true;
         context.refresh();
-        sendMessage('ui-bg-ai-save-store', next).then((response) => {
+        return sendMessage('ui-bg-ai-save-store', next).then((response) => {
             store.saving = false;
             if (response && response.data) {
                 store.data = response.data as AIStore;
@@ -132,6 +194,59 @@ export function AITab(props: ViewProps): Malevic.Child {
                 store.loadError = (response && response.error) || '保存失败（后台无响应）';
             }
             context.refresh();
+        });
+    }
+
+    /** 切换「仅 AI 模式」：保存后让后台把新策略下发到所有标签页 */
+    function setAIOnly(value: boolean) {
+        if (!store.data) {
+            return;
+        }
+        persist({...store.data, aiOnly: value}, false).then(() => {
+            sendMessage('ui-bg-ai-reapply');
+        });
+    }
+
+    /**
+     * 从三行纯文本导入一份新配置，并立即切换到它。
+     * 导入后各字段照常可改（表单就是普通输入框）。
+     */
+    function importFromText() {
+        if (!store.data) {
+            return;
+        }
+        const parsed = parseConfigText(store.importText);
+        if (!parsed) {
+            store.importMsg = {
+                ok: false,
+                text: '格式不对：需要第一行 Base URL（以 http 开头）、第二行 API Key，第三行模型可选',
+            };
+            context.refresh();
+            return;
+        }
+
+        const base = createDefaultConfig(configNameFromURL(parsed.baseURL));
+        const config: AIConfig = {
+            ...base,
+            baseURL: parsed.baseURL,
+            apiKey: parsed.apiKey,
+            model: parsed.model || base.model,
+            // 能导入说明用户想用，直接置为启用
+            enabled: true,
+        };
+
+        const next: AIStore = {
+            ...store.data,
+            configs: [...store.data.configs, config],
+            activeId: config.id,
+        };
+
+        const count = next.configs.length;
+        persist(next, true).then(() => {
+            store.importText = '';
+            store.importMsg = {ok: true, text: `已导入「${config.name}」，共 ${count} 套配置，可在上方直接修改`};
+            context.refresh();
+            sendMessage('ui-bg-ai-reapply');
         });
     }
 
@@ -323,6 +438,21 @@ export function AITab(props: ViewProps): Malevic.Child {
                 API Key 仅保存在本地，不会同步到云端。页面结构信息会发送到你自行配置的端点，不包含网页正文。
             </div>
 
+            <div class="ai-tab__section">
+                <div class="ai-tab__section-title">生效方式</div>
+                <CheckButton
+                    checked={data.aiOnly !== false}
+                    label="只对已生成 AI 方案的网站启用"
+                    description={data.aiOnly !== false
+                        ? '没有 AI 方案的网站保持原样，不套用默认深色'
+                        : '所有网站都会套用 Dark Reader 默认深色，AI 方案只做覆盖'}
+                    onChange={(checked: boolean) => setAIOnly(checked)}
+                />
+                <div class="ai-tab__description">
+                    切换后所有已打开的标签页会立即刷新。
+                </div>
+            </div>
+
             <Field label="配置" description={`共 ${data.configs.length} 套，点击切换`}>
                 <div class="ai-tab__config-list">
                     {data.configs.map((c) => (
@@ -349,6 +479,35 @@ export function AITab(props: ViewProps): Malevic.Child {
                         onclick={() => removeConfig(active.id)}
                     >－ 删除当前</button>
                 </div>
+            </Field>
+
+            <Field
+                label="从文本导入"
+                description="粘贴三行：第一行 Base URL，第二行 API Key，第三行模型（可选）。导入后可随时修改。"
+            >
+                <textarea
+                    class="ai-tab__textarea"
+                    rows="3"
+                    spellcheck="false"
+                    placeholder={IMPORT_PLACEHOLDER}
+                    value={store.importText}
+                    oninput={(e: any) => {
+                        store.importText = e.target.value;
+                        store.importMsg = null;
+                        context.refresh();
+                    }}
+                />
+                <div class="ai-tab__config-actions">
+                    <button
+                        class="ai-tab__mini-wide"
+                        disabled={!store.importText.trim() || store.saving}
+                        onclick={importFromText}
+                    >导入为新配置</button>
+                </div>
+                {store.importMsg ?
+                    <div class={`ai-tab__status ${store.importMsg.ok ? 'ai-tab__status--ok' : 'ai-tab__status--error'}`}>
+                        {store.importMsg.text}
+                    </div> : null}
             </Field>
 
             <Field label="名称" description="便于区分不同的服务商">

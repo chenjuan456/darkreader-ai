@@ -13,6 +13,31 @@
         margin-top: @indent-small;
     }
 
+    // 文本快捷导入的多行输入框
+    &__textarea {
+        background-color: @color-input-back;
+        border: @size-border solid @color-border;
+        box-sizing: border-box;
+        color: @color-input-fore;
+        font-family: monospace;
+        font-size: @size-text-small;
+        line-height: 1.5;
+        outline: none;
+        padding: 0.35rem;
+        resize: vertical;
+        width: 100%;
+
+        &::placeholder {
+            color: @color-input-fore-placeholder;
+            opacity: 0.75;
+        }
+
+        &:focus {
+            background-color: @color-input-hover;
+            color: @color-input-fore-active;
+        }
+    }
+
     &__label {
         color: @color-fore;
         display: block;

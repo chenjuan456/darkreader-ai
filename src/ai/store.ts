@@ -27,12 +27,23 @@ export interface SchemeRecord {
 /** key -> 记录 */
 export type SchemeStore = Record<string, SchemeRecord>;
 
+/** 某站点使用哪种配色：AI 方案 / Dark Reader 默认深色 */
+export type SiteMode = 'ai' | 'default';
+
+/** 域名 -> 站点配色偏好 */
+export type SiteModeStore = Record<string, SiteMode>;
+
 /** 方案版本号：改 Prompt 或 schema 时递增，让旧缓存自动失效 */
 export const SCHEME_VERSION = 2;
 
 interface VersionedStore {
     version: number;
     schemes: SchemeStore;
+    /**
+     * 每站点的配色偏好。
+     * 故意不参与 version 判断 —— 加这个字段不能让已生成的方案失效。
+     */
+    modes?: SiteModeStore;
 }
 
 /** 提取域名 */
@@ -104,21 +115,21 @@ function readStore(): Promise<VersionedStore> {
         chrome.storage.local.get({[STORAGE_KEY]: null}, (result) => {
             if (chrome.runtime.lastError) {
                 console.error(chrome.runtime.lastError.message);
-                resolve({version: SCHEME_VERSION, schemes: {}});
+                resolve({version: SCHEME_VERSION, schemes: {}, modes: {}});
                 return;
             }
             const stored = result[STORAGE_KEY] as any;
             if (!stored || typeof stored !== 'object') {
-                resolve({version: SCHEME_VERSION, schemes: {}});
+                resolve({version: SCHEME_VERSION, schemes: {}, modes: {}});
                 return;
             }
             // 旧版本：schemes 里直接是 AIScheme
             if (stored.version !== SCHEME_VERSION) {
                 const migrated = migrateFromV1(stored.schemes || stored);
-                resolve({version: SCHEME_VERSION, schemes: migrated});
+                resolve({version: SCHEME_VERSION, schemes: migrated, modes: stored.modes || {}});
                 return;
             }
-            resolve({version: SCHEME_VERSION, schemes: stored.schemes || {}});
+            resolve({version: SCHEME_VERSION, schemes: stored.schemes || {}, modes: stored.modes || {}});
         });
     });
 }
@@ -170,6 +181,8 @@ export function findMatchingScheme(schemes: SchemeStore, url: string): SchemeRec
 // ---------------- 同步缓存（供 background 的同步调用点使用） ----------------
 
 let memoryCache: SchemeStore | null = null;
+/** 站点配色偏好缓存（与 memoryCache 同步维护） */
+let modeCache: SiteModeStore = {};
 
 export function primeMemoryCache(schemes: SchemeStore): void {
     memoryCache = schemes;
@@ -191,11 +204,21 @@ export function getCachedRecordSync(url: string): SchemeRecord | null {
     return findMatchingScheme(memoryCache, url);
 }
 
+/** 同步查询某 URL 的配色偏好；未设置返回 null（表示跟随全局策略） */
+export function getCachedSiteModeSync(url: string): SiteMode | null {
+    const domain = normalizeDomain(url);
+    if (!domain) {
+        return null;
+    }
+    return modeCache[domain] || null;
+}
+
 // ---------------- 异步读写 ----------------
 
 export async function loadAllSchemes(): Promise<SchemeStore> {
     const store = await readStore();
     memoryCache = store.schemes;
+    modeCache = store.modes || {};
     return store.schemes;
 }
 
@@ -235,9 +258,50 @@ export async function saveScheme(
     return record;
 }
 
-/** 按 key 精确删除 */
-export async function removeSchemeByKey(key: string): Promise<void> {
+/**
+ * 设置某站点的配色偏好。
+ * mode = 'default' 时该站点忽略 AI 方案，改用 Dark Reader 默认深色。
+ */
+export async function setSiteMode(urlOrDomain: string, mode: SiteMode): Promise<void> {
+    const domain = normalizeDomain(urlOrDomain);
+    if (!domain) {
+        return;
+    }
     const store = await readStore();
+    if (!store.modes) {
+        store.modes = {};
+    }
+    store.modes[domain] = mode;
+    await writeStore(store);
+    modeCache = store.modes;
+}
+
+/** 读取某站点的配色偏好 */
+export async function getSiteMode(urlOrDomain: string): Promise<SiteMode | null> {
+    const domain = normalizeDomain(urlOrDomain);
+    if (!domain) {
+        return null;
+    }
+    const store = await readStore();
+    return (store.modes && store.modes[domain]) || null;
+}
+
+/** 清除某站点的配色偏好（回到跟随全局策略） */
+export async function clearSiteMode(urlOrDomain: string): Promise<void> {
+    const domain = normalizeDomain(urlOrDomain);
+    if (!domain) {
+        return;
+    }
+    const store = await readStore();
+    if (store.modes && store.modes[domain]) {
+        delete store.modes[domain];
+        await writeStore(store);
+        modeCache = store.modes;
+    }
+}
+
+/** 按 key 精确删除 */
+export async function removeSchemeByKey(key: string): Promise<void> {    const store = await readStore();
     if (store.schemes[key]) {
         delete store.schemes[key];
         await writeStore(store);

@@ -45,6 +45,34 @@ export interface AIStore {
     configs: AIConfig[];
     /** 当前激活的配置 id */
     activeId: string;
+    /**
+     * 只在「已生成 AI 方案」的站点启用深色。
+     * 开启后没有 AI 方案的网站保持原样，不再套用 Dark Reader 默认深色。
+     * 未设置时按 true 处理（本 fork 的默认取向）。
+     */
+    aiOnly?: boolean;
+}
+
+/**
+ * AI 模块设置的同步缓存。
+ *
+ * getTabMessage() 是同步函数，但设置读取是异步的，
+ * 因此启动时把整份 store 读进内存，之后由读写操作负责更新。
+ */
+let cachedStore: AIStore | null = null;
+
+/** 当前是否「仅 AI 方案生效」模式 */
+export function isAIOnlyMode(): boolean {
+    if (!cachedStore) {
+        // 缓存尚未就绪：保守地按默认取向（只认 AI 方案）
+        return true;
+    }
+    return cachedStore.aiOnly !== false;
+}
+
+/** 供同步调用点读取完整 store（可能为 null） */
+export function getAIStoreSync(): AIStore | null {
+    return cachedStore;
 }
 
 export const DEFAULT_AI_SETTINGS: AISettings = {
@@ -127,7 +155,9 @@ function writeStore(store: AIStore): Promise<AIStore> {
 
 /** 读取完整的配置列表（供设置页使用） */
 export async function loadAIStore(): Promise<AIStore> {
-    return await readStore();
+    const store = await readStore();
+    cachedStore = store;
+    return store;
 }
 
 /** 保存整个配置列表 */
@@ -136,12 +166,15 @@ export async function saveAIStore(store: AIStore): Promise<AIStore> {
     if (!store.configs.some((c) => c.id === store.activeId)) {
         store.activeId = store.configs[0]?.id || '';
     }
-    return await writeStore(store);
+    const saved = await writeStore(store);
+    cachedStore = saved;
+    return saved;
 }
 
 /** 读取「当前激活」的配置——所有业务调用点用这个 */
 export async function loadAISettings(): Promise<AISettings> {
     const store = await readStore();
+    cachedStore = store;
     const active = store.configs.find((c) => c.id === store.activeId) || store.configs[0];
     if (!active) {
         return {...DEFAULT_AI_SETTINGS};
@@ -156,6 +189,7 @@ export async function loadAISettings(): Promise<AISettings> {
  */
 export async function saveAISettings(patch: Partial<AISettings>): Promise<AISettings> {
     const store = await readStore();
+    cachedStore = store;
     const idx = store.configs.findIndex((c) => c.id === store.activeId);
     if (idx < 0) {
         return {...DEFAULT_AI_SETTINGS, ...patch};
