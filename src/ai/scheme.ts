@@ -9,7 +9,7 @@
 
 import type {DynamicThemeFix, Theme} from '../definitions';
 
-import type {PageDigest} from './collect';
+import type {PageDigest} from './types';
 
 export interface AIScheme {
     /** 配色方案 */
@@ -231,21 +231,57 @@ export function extractJSON(text: string): any {
     return null;
 }
 
-/** 校验选择器是否合法（用 CSS.supports 的思路，浏览器里可用） */
+/**
+ * 校验选择器是否「看起来合法」。
+ *
+ * 注意：这里**不能**用 document.querySelector 验证。
+ * 本模块运行在 background service worker 里，没有 DOM，
+ * 那样的写法会因 `document is not defined` 直接返回 false，
+ * 导致 AI 给出的所有 invert / ignore* 选择器被整体丢弃（曾经的真实 bug）。
+ *
+ * 因此改用纯语法检查。即使有漏网的非法选择器，浏览器解析样式表时
+ * 也只会丢弃那一条规则，不会影响其他规则。
+ */
 function isValidSelector(sel: unknown): boolean {
-    if (typeof sel !== 'string' || !sel.trim()) {
+    if (typeof sel !== 'string') {
         return false;
     }
-    // 长度限制，防止恶意超长选择器
-    if (sel.length > 300) {
+    const s = sel.trim();
+    if (!s || s.length > 300) {
         return false;
     }
-    try {
-        document.createDocumentFragment().querySelector(sel);
-        return true;
-    } catch (err) {
+    // 会破坏样式表结构的字符。
+    // 先把引号内的内容剔除，避免误伤 [data-x="a!b"] 这类合法属性值。
+    const withoutQuoted = s.replace(/"[^"]*"|'[^']*'/g, '""');
+    if (/[{};@\\!]/.test(withoutQuoted)) {
         return false;
     }
+    // 方括号与圆括号必须配平
+    for (const [open, close] of [['[', ']'], ['(', ')']]) {
+        let depth = 0;
+        for (const ch of s) {
+            if (ch === open) {
+                depth++;
+            } else if (ch === close) {
+                depth--;
+                if (depth < 0) {
+                    return false;
+                }
+            }
+        }
+        if (depth !== 0) {
+            return false;
+        }
+    }
+    // 不能以组合符或逗号开头/结尾
+    if (/^[>+~,]/.test(s) || /[>+~,]$/.test(s)) {
+        return false;
+    }
+    // 至少要有一个有效的选择器构成（标签/类/id/属性/伪类/通配）
+    if (!/[a-zA-Z#.*:[]/.test(s)) {
+        return false;
+    }
+    return true;
 }
 
 /** 校验颜色值基本合法 */
@@ -326,3 +362,4 @@ export function normalizeScheme(raw: any, model: string): AIScheme | null {
         model,
     };
 }
+

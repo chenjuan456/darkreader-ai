@@ -10,6 +10,7 @@
  */
 
 import type {AIScheme} from './scheme';
+import {normalizeScheme} from './scheme';
 
 const STORAGE_KEY = 'ai-schemes';
 
@@ -381,6 +382,24 @@ export async function importSchemes(
             skipped++;
             continue;
         }
+
+        // 导入的数据同样要过一遍净化：AI 生成路径有防护，导入路径以前没有。
+        // 复用 normalizeScheme，保证选择器合法性、颜色格式、CSS 危险内容过滤一致。
+        const original = record.scheme as any;
+        const normalized = normalizeScheme(original, original.model || 'imported');
+        if (!normalized) {
+            skipped++;
+            continue;
+        }
+        // 保留原始时间戳与模型名，避免导入把历史信息洗掉
+        if (original.createdAt) {
+            normalized.createdAt = original.createdAt;
+        }
+        if (original.model) {
+            normalized.model = original.model;
+        }
+        record.scheme = normalized;
+
         store.schemes[key] = record;
         imported++;
     }

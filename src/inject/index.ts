@@ -39,6 +39,13 @@ let iconFixCache: {selectors: string[]; url: string} | null = null;
 let iconDetectionScheduled = false;
 
 /**
+ * 最近一次「应用主题」的上下文。
+ * 延迟的图标检测必须用它重算，不能用排期时捕获的旧值，
+ * 否则会把用户期间切换的模式覆盖掉。
+ */
+let latestThemeContext: {theme: Theme; fixes: DynamicThemeFix[] | null; isIFrame: boolean} | null = null;
+
+/**
  * 把检测到的图标选择器合并进 fixes.invert。
  * 纯函数，便于测试。
  */
@@ -104,24 +111,37 @@ function mergeIconFixes(fixes: DynamicThemeFix[] | null): DynamicThemeFix[] | nu
  * - 图标可能延迟渲染（SPA）
  * - 不能让主流程等待，否则用户会感到卡顿
  *
- * 检测完成后重新应用一次主题，把新规则合进去。
+ * 关键点：延迟任务**不能**闭包捕获 theme/fixes。
+ * 否则在 300ms 等待期间用户切换了模式（例如从「AI 方案」切到「默认深色」），
+ * 定时器到点时会用旧主题重绘，把用户刚做的切换冲掉。
+ * 因此这里只记录「最近一次应用上下文」，到点后按最新值重算。
  */
 function scheduleIconDetection(theme: Theme, fixes: DynamicThemeFix[] | null, isIFrame: boolean): void {
+    // 始终更新为最新上下文，供已排队的延迟任务使用
+    latestThemeContext = {theme, fixes, isIFrame};
+
     if (iconDetectionScheduled) {
         return;
     }
     iconDetectionScheduled = true;
 
     const run = () => {
+        // 先解除排期标记：允许后续主题变更（SPA 路由切换等）再次触发检测
+        iconDetectionScheduled = false;
         try {
+            const ctx = latestThemeContext;
+            if (!ctx) {
+                return;
+            }
             const icons = detectInvisibleIcons(document.body);
             const selectors = icons.map((i) => i.selector);
             if (selectors.length === 0) {
                 return;
             }
+            // 缓存与当前 URL 绑定，避免跨页误用
             iconFixCache = {selectors, url: location.href};
-            // 用新规则重算主题
-            createOrUpdateDynamicTheme(theme, mergeIconSelectors(fixes, selectors), isIFrame);
+            // 用「最新」上下文重算主题，而不是排期时的旧值
+            createOrUpdateDynamicTheme(ctx.theme, mergeIconSelectors(ctx.fixes, selectors), ctx.isIFrame);
             console.info(`[Dark Reader AI] 本地图标检测：为 ${selectors.length} 个图标添加了反色`);
         } catch (err) {
             // 检测失败不影响正常使用
@@ -142,6 +162,7 @@ function scheduleIconDetection(theme: Theme, fixes: DynamicThemeFix[] | null, is
 function resetIconDetectionCache(): void {
     iconFixCache = null;
     iconDetectionScheduled = false;
+    latestThemeContext = null;
 }
 
 // Identifier for this particular script instance. It is used as an alternative to chrome.runtime.MessageSender.documentId
