@@ -68,6 +68,7 @@
         "storage"
     ],
     "host_permissions": [
-        "*://*/*"
+        "*://*/*",
+        "file:///*"
     ]
 }
