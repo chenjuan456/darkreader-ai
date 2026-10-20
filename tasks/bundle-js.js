@@ -57,11 +57,7 @@ const jsEntries = [
         dest: 'ui/options/index.js',
         reloadType: reload.UI,
     },
-    {
-        src: 'src/ui/popup/index.tsx',
-        dest: 'ui/popup/index.js',
-        reloadType: reload.UI,
-    },
+
     {
         src: 'src/ui/sidepanel/index.tsx',
         dest: 'ui/sidepanel/index.js',
@@ -265,3 +261,4 @@ export function createBundleJSTask(jsEntries) {
 }
 
 export default createBundleJSTask(jsEntries);
+

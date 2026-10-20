@@ -14,17 +14,9 @@
  */
 
 /** 单个被判定为不可见的图标 */
-export interface InvisibleIcon {
-    selector: string;
-    /** 'img' | 'svg' | 'font' | 'bg' */
-    kind: string;
-    /** 图标亮度 0..1，-1 表示无法判定 */
-    iconLuminance: number;
-    /** 父容器背景亮度 0..1 */
-    bgLuminance: number;
-    width: number;
-    height: number;
-}
+import type {InvisibleIcon} from './types';
+
+export type {InvisibleIcon};
 
 /** 图标尺寸窗口：小于下限的可能是装饰点，大于上限的通常是插图 */
 const MIN_ICON_SIZE = 8;

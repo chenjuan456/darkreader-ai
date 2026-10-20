@@ -3,7 +3,7 @@
  */
 
 import * as AIClient from './client';
-import type {PageDigest} from './collect';
+import type {PageDigest} from './types';
 import {buildFeedbackPrompt, buildUserPrompt, extractJSON, normalizeScheme, SCHEME_JSON_SCHEMA, type AIScheme, type UserFeedback} from './scheme';
 import {loadAISettings} from './settings';
 
@@ -141,3 +141,4 @@ async function runGeneration(
         usage: result.usage,
     };
 }
+

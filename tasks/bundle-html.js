@@ -52,14 +52,7 @@ const htmlEntries = [
         reloadType: reload.FULL,
         platforms: [PLATFORM.CHROMIUM_MV2, PLATFORM.CHROMIUM_MV2_PLUS, PLATFORM.FIREFOX_MV2, PLATFORM.THUNDERBIRD],
     },
-    {
-        title: 'Dark Reader settings',
-        path: 'ui/popup/index.html',
-        hasLoader: true,
-        hasStyleSheet: true,
-        hasCompatibilityCheck: true,
-        reloadType: reload.UI,
-    },
+
     {
         title: 'Dark Reader AI',
         path: 'ui/sidepanel/index.html',
@@ -128,3 +121,4 @@ export function createBundleHTMLTask(htmlEntries) {
 }
 
 export default createBundleHTMLTask(htmlEntries);
+

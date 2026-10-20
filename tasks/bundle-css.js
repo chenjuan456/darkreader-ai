@@ -22,10 +22,7 @@ const cssEntries = [
         src: 'src/ui/options/style.less',
         dest: 'ui/options/style.css',
     },
-    {
-        src: 'src/ui/popup/style.less',
-        dest: 'ui/popup/style.css',
-    },
+
     {
         src: 'src/ui/sidepanel/style.less',
         dest: 'ui/sidepanel/style.css',
@@ -142,3 +139,4 @@ export function createBundleCSSTask(cssEntries) {
 }
 
 export default createBundleCSSTask(cssEntries);
+

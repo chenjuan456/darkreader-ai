@@ -8,7 +8,7 @@
  * 本文件提供一份完全自包含的等价实现。
  */
 
-import type {PageDigest} from './collect';
+import type {PageDigest} from './types';
 
 export function collectDigestInPage(): PageDigest {
     const MAX_OUTLINE = 100;
@@ -303,3 +303,4 @@ export function collectDigestInPage(): PageDigest {
         topBackgrounds,
     };
 }
+
